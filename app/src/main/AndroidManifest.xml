@@ -10,6 +10,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SesameApp"
         android:usesCleartextTraffic="true">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_key" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -27,5 +32,7 @@
         <activity
             android:name=".AddListActivity"
             android:exported="true" />
+        <activity
+            android:name=".PlacesSearchActivity" />
     </application>
 </manifest>

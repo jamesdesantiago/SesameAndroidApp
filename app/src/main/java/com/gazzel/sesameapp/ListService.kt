@@ -33,4 +33,34 @@ interface ListService {
         @Path("id") listId: Int,
         @Header("Authorization") token: String
     ): Response<ListResponse>
+
+    @POST("lists/{list_id}/collaborators")
+    suspend fun addCollaborator(
+        @Path("list_id") listId: Int,
+        @Body collaborator: CollaboratorAdd,
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
+    @POST("lists/{list_id}/collaborators/batch")
+    suspend fun addCollaboratorsBatch(
+        @Path("list_id") listId: Int,
+        @Body collaborators: List<CollaboratorAdd>,
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
+    @POST("lists/{list_id}/places")
+    suspend fun addPlace(
+        @Path("list_id") listId: Int,
+        @Body place: PlaceCreate,
+        @Header("Authorization") authorization: String
+    ): Response<Unit>
+
+    // New endpoint to update a place
+    @PATCH("lists/{listId}/places/{placeId}")
+    suspend fun updatePlace(
+        @Path("listId") listId: Int,
+        @Path("placeId") placeId: Int,
+        @Body update: PlaceUpdate,
+        @Header("Authorization") authHeader: String
+    ): Response<Unit>
 }

@@ -43,24 +43,27 @@ android {
 dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.4.3")
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx) // Use 2.6.1 from libs.versions.toml
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material3) // Only once
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.play.services.auth)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
-    implementation("com.google.firebase:firebase-auth")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("com.google.android.libraries.places:places:3.3.0")
+    implementation("com.google.android.gms:play-services-tasks:18.2.0")
+    implementation ("com.google.maps.android:maps-compose:2.9.0")   // Or latest version
+    implementation ("com.google.android.gms:play-services-maps:18.1.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

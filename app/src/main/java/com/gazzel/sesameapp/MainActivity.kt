@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme  // <-- Adjust to match your theme’s package
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -43,7 +44,8 @@ class MainActivity : ComponentActivity() {
             var isLoading by remember { mutableStateOf(false) }
             var errorMessage by remember { mutableStateOf<String?>(null) }
 
-            MaterialTheme {
+            // Wrap your UI in SesameAppTheme
+            SesameAppTheme {
                 LoginScreen(
                     isLoading = isLoading,
                     errorMessage = errorMessage,
@@ -69,11 +71,19 @@ class MainActivity : ComponentActivity() {
                 firebaseAuthWithGoogle(account.idToken!!)
             } catch (e: ApiException) {
                 setContent {
-                    MaterialTheme {
+                    // Use SesameAppTheme again for consistency
+                    SesameAppTheme {
                         LoginScreen(
                             isLoading = false,
                             errorMessage = "Sign-in failed: ${e.statusCode}",
-                            onGoogleSignInClick = { startActivityForResult(GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signInIntent, RC_SIGN_IN) }
+                            onGoogleSignInClick = {
+                                startActivityForResult(
+                                    GoogleSignIn.getClient(
+                                        this,
+                                        GoogleSignInOptions.DEFAULT_SIGN_IN
+                                    ).signInIntent, RC_SIGN_IN
+                                )
+                            }
                         )
                     }
                 }
@@ -90,11 +100,19 @@ class MainActivity : ComponentActivity() {
                     finish()
                 } else {
                     setContent {
-                        MaterialTheme {
+                        // Wrap again in SesameAppTheme for styling
+                        SesameAppTheme {
                             LoginScreen(
                                 isLoading = false,
                                 errorMessage = "Auth failed: ${task.exception?.message}",
-                                onGoogleSignInClick = { startActivityForResult(GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signInIntent, RC_SIGN_IN) }
+                                onGoogleSignInClick = {
+                                    startActivityForResult(
+                                        GoogleSignIn.getClient(
+                                            this,
+                                            GoogleSignInOptions.DEFAULT_SIGN_IN
+                                        ).signInIntent, RC_SIGN_IN
+                                    )
+                                }
                             )
                         }
                     }
@@ -125,6 +143,7 @@ fun LoginScreen(
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(32.dp))
+
             if (isLoading) {
                 CircularProgressIndicator()
             } else {
@@ -135,6 +154,7 @@ fun LoginScreen(
                     Text("Sign in with Google")
                 }
             }
+
             errorMessage?.let {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(

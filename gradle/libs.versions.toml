@@ -8,9 +8,9 @@ espressoCore = "3.5.1"
 lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 composeBom = "2024.09.00"
-googleServices = "4.4.2"           # Add this
-firebaseBom = "33.1.0"             # Add this
-playServicesAuth = "20.7.0"        # Add this
+googleServices = "4.4.2"
+firebaseBom = "33.1.0"
+playServicesAuth = "20.7.0"
 retrofit = "2.11.0"
 
 [libraries]
@@ -27,10 +27,10 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
-firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }           # Add this
-firebase-auth = { module = "com.google.firebase:firebase-auth" }                                     # Add this
-play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }  # Add this
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" } # Use BOM version
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
 
@@ -38,4 +38,4 @@ converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }          # Add this
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

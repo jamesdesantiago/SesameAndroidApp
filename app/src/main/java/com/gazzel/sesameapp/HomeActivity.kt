@@ -5,17 +5,17 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
-import com.google.firebase.auth.FirebaseAuth
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme  // <-- Make sure this import matches your theme package
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import com.google.firebase.auth.FirebaseAuth
 
 // In-memory cache for the list of lists.
 object ListCache {
@@ -60,12 +60,13 @@ class HomeActivity : ComponentActivity() {
                 listsState.addAll(cached)
             }
 
-            // Fetch updated lists.
+            // Fetch updated lists when this composable first launches.
             LaunchedEffect(Unit) {
                 fetchLists(listsState, errorMessageState)
             }
 
-            MaterialTheme {
+            // Wrap the HomeScreen in your Compose theme function
+            SesameAppTheme {
                 HomeScreen(
                     lists = listsState,
                     errorMessage = errorMessageState.value,
@@ -136,7 +137,11 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun deleteList(listId: Int, lists: MutableList<ListResponse>, errorMessage: MutableState<String?>) {
+    private suspend fun deleteList(
+        listId: Int,
+        lists: MutableList<ListResponse>,
+        errorMessage: MutableState<String?>
+    ) {
         val token = getValidToken()
         if (token != null) {
             try {
@@ -178,7 +183,11 @@ class HomeActivity : ComponentActivity() {
         if (token != null) {
             try {
                 Log.d("FastAPI", "Updating list with id: $listId to new name: $newName")
-                val response = listService.updateList(listId, ListUpdate(name = newName, isPrivate = null), "Bearer $token")
+                val response = listService.updateList(
+                    listId,
+                    ListUpdate(name = newName, isPrivate = null),
+                    "Bearer $token"
+                )
                 if (response.isSuccessful) {
                     response.body()?.let { updatedList ->
                         lists[index] = updatedList
@@ -205,6 +214,7 @@ class HomeActivity : ComponentActivity() {
     }
 
     private suspend fun getValidToken(): String? {
+        // If cached token is still valid, use it; otherwise fetch a new one
         return if (cachedToken != null && System.currentTimeMillis() / 1000 < tokenExpiry - 300) {
             cachedToken
         } else {
@@ -245,14 +255,19 @@ class HomeActivity : ComponentActivity() {
         if (token != null) {
             try {
                 Log.d("FastAPI", "Toggling privacy for list id: $listId to new value: $newPrivacy")
-                // Send current list name along with new privacy value.
-                val response = listService.updateList(listId, ListUpdate(name = originalList.name, isPrivate = newPrivacy), "Bearer $token")
+                val response = listService.updateList(
+                    listId,
+                    ListUpdate(name = originalList.name, isPrivate = newPrivacy),
+                    "Bearer $token"
+                )
                 if (response.isSuccessful) {
                     val updatedList = response.body()
-                    // If updatedList?.isPrivate is null, fallback to newPrivacy.
                     val finalPrivacy = updatedList?.isPrivate ?: newPrivacy
-                    lists[index] = updatedList?.copy(collaborators = updatedList.collaborators ?: emptyList())
-                        ?: originalList.copy(isPrivate = finalPrivacy)
+                    lists[index] = updatedList?.copy(
+                        collaborators = updatedList.collaborators ?: emptyList()
+                    ) ?: originalList.copy(isPrivate = finalPrivacy)
+
+                    Log.d("PrivacyCheck", "List ID $listId isPrivate in UI state: ${lists[index].isPrivate}")
                     ListCache.cachedLists = lists.toList()
                     Log.d("FastAPI", "Privacy updated successfully: $finalPrivacy")
                 } else {
