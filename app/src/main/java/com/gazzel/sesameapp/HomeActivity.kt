@@ -71,15 +71,6 @@ class HomeActivity : ComponentActivity() {
                     lists = listsState,
                     errorMessage = errorMessageState.value,
                     isLoading = isLoadingState,
-                    onDeleteList = { listId ->
-                        scope.launch { deleteList(listId, listsState, errorMessageState) }
-                    },
-                    onUpdateList = { listId, newName ->
-                        scope.launch { updateListName(listId, newName, listsState, errorMessageState) }
-                    },
-                    onTogglePrivacy = { listId, newPrivacy ->
-                        scope.launch { togglePrivacy(listId, newPrivacy, listsState, errorMessageState) }
-                    },
                     onOpenList = { list ->
                         context.startActivity(
                             Intent(context, ListDetailActivity::class.java).apply {
@@ -137,82 +128,6 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun deleteList(
-        listId: Int,
-        lists: MutableList<ListResponse>,
-        errorMessage: MutableState<String?>
-    ) {
-        val token = getValidToken()
-        if (token != null) {
-            try {
-                Log.d("FastAPI", "Deleting list with id: $listId")
-                val response = listService.deleteList(listId, "Bearer $token")
-                if (response.isSuccessful) {
-                    lists.removeAll { it.id == listId }
-                    ListCache.cachedLists = lists.toList()
-                    Log.d("FastAPI", "List deleted successfully")
-                } else {
-                    Log.e("FastAPI", "DELETE failed: ${response.code()} - ${response.errorBody()?.string()}")
-                    errorMessage.value = "Failed to delete list: ${response.code()}"
-                }
-            } catch (e: Exception) {
-                Log.e("FastAPI", "DELETE exception: ${e.message}")
-                errorMessage.value = "Error deleting list: ${e.message}"
-            }
-        } else {
-            errorMessage.value = "Not signed in"
-        }
-    }
-
-    private suspend fun updateListName(
-        listId: Int,
-        newName: String,
-        lists: MutableList<ListResponse>,
-        errorMessage: MutableState<String?>
-    ) {
-        val index = lists.indexOfFirst { it.id == listId }
-        if (index == -1) {
-            errorMessage.value = "List not found"
-            return
-        }
-        val originalList = lists[index]
-        // Optimistically update UI.
-        lists[index] = originalList.copy(name = newName)
-
-        val token = getValidToken()
-        if (token != null) {
-            try {
-                Log.d("FastAPI", "Updating list with id: $listId to new name: $newName")
-                val response = listService.updateList(
-                    listId,
-                    ListUpdate(name = newName, isPrivate = null),
-                    "Bearer $token"
-                )
-                if (response.isSuccessful) {
-                    response.body()?.let { updatedList ->
-                        lists[index] = updatedList
-                        ListCache.cachedLists = lists.toList()
-                        Log.d("FastAPI", "List updated successfully")
-                    } ?: run {
-                        errorMessage.value = "Update returned no data"
-                        lists[index] = originalList
-                    }
-                } else {
-                    Log.e("FastAPI", "UPDATE failed: ${response.code()} - ${response.errorBody()?.string()}")
-                    errorMessage.value = "Failed to update list: ${response.code()}"
-                    lists[index] = originalList
-                }
-            } catch (e: Exception) {
-                Log.e("FastAPI", "UPDATE exception: ${e.message}")
-                errorMessage.value = "Error updating list: ${e.message}"
-                lists[index] = originalList
-            }
-        } else {
-            errorMessage.value = "Not signed in"
-            lists[index] = originalList
-        }
-    }
-
     private suspend fun getValidToken(): String? {
         // If cached token is still valid, use it; otherwise fetch a new one
         return if (cachedToken != null && System.currentTimeMillis() / 1000 < tokenExpiry - 300) {
@@ -230,59 +145,6 @@ class HomeActivity : ComponentActivity() {
             cachedToken
         } catch (e: Exception) {
             null
-        }
-    }
-
-    private suspend fun togglePrivacy(
-        listId: Int,
-        newPrivacy: Boolean,
-        lists: MutableList<ListResponse>,
-        errorMessage: MutableState<String?>
-    ) {
-        val index = lists.indexOfFirst { it.id == listId }
-        if (index == -1) {
-            errorMessage.value = "List not found"
-            return
-        }
-        val originalList = lists[index]
-        // Optimistically update UI.
-        lists[index] = originalList.copy(
-            isPrivate = newPrivacy,
-            collaborators = originalList.collaborators ?: emptyList()
-        )
-
-        val token = getValidToken()
-        if (token != null) {
-            try {
-                Log.d("FastAPI", "Toggling privacy for list id: $listId to new value: $newPrivacy")
-                val response = listService.updateList(
-                    listId,
-                    ListUpdate(name = originalList.name, isPrivate = newPrivacy),
-                    "Bearer $token"
-                )
-                if (response.isSuccessful) {
-                    val updatedList = response.body()
-                    val finalPrivacy = updatedList?.isPrivate ?: newPrivacy
-                    lists[index] = updatedList?.copy(
-                        collaborators = updatedList.collaborators ?: emptyList()
-                    ) ?: originalList.copy(isPrivate = finalPrivacy)
-
-                    Log.d("PrivacyCheck", "List ID $listId isPrivate in UI state: ${lists[index].isPrivate}")
-                    ListCache.cachedLists = lists.toList()
-                    Log.d("FastAPI", "Privacy updated successfully: $finalPrivacy")
-                } else {
-                    Log.e("FastAPI", "Privacy update failed: ${response.code()} - ${response.errorBody()?.string()}")
-                    errorMessage.value = "Failed to update privacy: ${response.code()}"
-                    lists[index] = originalList
-                }
-            } catch (e: Exception) {
-                Log.e("FastAPI", "Privacy update exception: ${e.message}")
-                errorMessage.value = "Error updating privacy: ${e.message}"
-                lists[index] = originalList
-            }
-        } else {
-            errorMessage.value = "Not signed in"
-            lists[index] = originalList
         }
     }
 }

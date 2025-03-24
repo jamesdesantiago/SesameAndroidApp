@@ -15,6 +15,9 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -22,8 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.runtime.LaunchedEffect
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.maps.android.compose.*
@@ -186,6 +194,8 @@ fun DetailScreen(
     // State for the notes editor
     var editingNotesPlaceId by rememberSaveable { mutableStateOf<Int?>(null) }
     var currentNote by rememberSaveable { mutableStateOf("") }
+    // State for the place sharing overlay
+    var sharingPlaceId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -449,6 +459,8 @@ fun DetailScreen(
                         DropdownMenuItem(
                             text = { Text("Share", style = MaterialTheme.typography.bodyMedium) },
                             onClick = {
+                                Log.d("ListDetail", "Share selected for placeId=$placeMenuExpanded")
+                                sharingPlaceId = placeMenuExpanded
                                 placeMenuExpanded = null
                             }
                         )
@@ -676,6 +688,156 @@ fun DetailScreen(
                                         color = MaterialTheme.colorScheme.onPrimary,
                                         style = MaterialTheme.typography.labelLarge
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Sharing overlay
+                if (sharingPlaceId != null) {
+                    val place = detail.places?.find { it.id == sharingPlaceId }
+                    val clipboardManager = LocalClipboardManager.current
+                    val context = LocalContext.current
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight(),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Share",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+
+                            val shareUrl = "https://sesameapp.com/place/${sharingPlaceId}?listId=$listId"
+                            val shareMessage = "Check out this place on Sesame: ${place?.name} at ${place?.address}\n$shareUrl"
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                // Copy Link
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(shareUrl))
+                                    Log.d("ListDetail", "Copied share URL to clipboard: $shareUrl")
+                                    sharingPlaceId = null
+                                }) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = "Copy link",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "Copy link",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // WhatsApp
+                                IconButton(onClick = {
+                                    try {
+                                        val whatsappIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            setPackage("com.whatsapp")
+                                            putExtra(Intent.EXTRA_TEXT, shareMessage)
+                                        }
+                                        context.startActivity(whatsappIntent)
+                                        Log.d("ListDetail", "Opened WhatsApp with share URL: $shareUrl")
+                                    } catch (e: Exception) {
+                                        Log.e("ListDetail", "Failed to open WhatsApp", e)
+                                        // Optionally show an error message
+                                    }
+                                    sharingPlaceId = null
+                                }) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share via WhatsApp",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "WhatsApp",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // Instagram
+                                IconButton(onClick = {
+                                    try {
+                                        val instagramIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            setPackage("com.instagram.android")
+                                            putExtra(Intent.EXTRA_TEXT, shareMessage)
+                                        }
+                                        context.startActivity(instagramIntent)
+                                        Log.d("ListDetail", "Opened Instagram with share URL: $shareUrl")
+                                    } catch (e: Exception) {
+                                        Log.e("ListDetail", "Failed to open Instagram", e)
+                                        // Optionally show an error message
+                                    }
+                                    sharingPlaceId = null
+                                }) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share via Instagram",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "Instagram",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // SMS
+                                IconButton(onClick = {
+                                    try {
+                                        val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                            data = android.net.Uri.parse("smsto:")
+                                            putExtra("sms_body", shareMessage)
+                                        }
+                                        context.startActivity(smsIntent)
+                                        Log.d("ListDetail", "Opened SMS with share URL: $shareUrl")
+                                    } catch (e: Exception) {
+                                        Log.e("ListDetail", "Failed to open SMS", e)
+                                        // Optionally show an error message
+                                    }
+                                    sharingPlaceId = null
+                                }) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Message,
+                                            contentDescription = "Share via SMS",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "SMS",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }

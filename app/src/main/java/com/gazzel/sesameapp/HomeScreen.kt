@@ -23,9 +23,9 @@ fun HomeScreen(
     lists: List<ListResponse>,
     errorMessage: String?,
     isLoading: Boolean,
-    onDeleteList: (Int) -> Unit,
-    onUpdateList: (Int, String) -> Unit,
-    onTogglePrivacy: (Int, Boolean) -> Unit,
+    //onDeleteList: (Int) -> Unit,
+    //onUpdateList: (Int, String) -> Unit,
+    //onTogglePrivacy: (Int, Boolean) -> Unit,
     onOpenList: (ListResponse) -> Unit,
     onAddListClick: () -> Unit,
     onSignOut: () -> Unit
@@ -94,91 +94,6 @@ fun HomeScreen(
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
-                                            text = if (list.isPrivate) "Private" else "Public",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    Row {
-                                        IconToggleButton(
-                                            checked = list.isPrivate,
-                                            onCheckedChange = { onTogglePrivacy(list.id, it) }
-                                        ) {
-                                            Icon(
-                                                imageVector = if (list.isPrivate) Icons.Filled.Lock
-                                                else Icons.Filled.LockOpen,
-                                                contentDescription = "Privacy toggle",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        IconButton(onClick = {
-                                            editingListId = list.id
-                                            editingListName = list.name ?: ""
-                                        }) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Edit,
-                                                contentDescription = "Edit List",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        IconButton(onClick = { onDeleteList(list.id) }) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Delete,
-                                                contentDescription = "Delete List",
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        }
-                                    }
-                                }
-
-                                if (editingListId == list.id) {
-                                    Divider(
-                                        modifier = Modifier.padding(vertical = 8.dp),
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                    OutlinedTextField(
-                                        value = editingListName,
-                                        onValueChange = { editingListName = it },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        label = { Text("Rename List") },
-                                        shape = MaterialTheme.shapes.small,
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                        ),
-                                        textStyle = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Row(
-                                        modifier = Modifier
-                                            .padding(top = 12.dp)
-                                            .fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        TextButton(
-                                            onClick = {
-                                                editingListId = null
-                                                editingListName = ""
-                                            }
-                                        ) {
-                                            Text("Cancel", color = MaterialTheme.colorScheme.primary)
-                                        }
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Button(
-                                            onClick = {
-                                                onUpdateList(list.id, editingListName)
-                                                editingListId = null
-                                                editingListName = ""
-                                            },
-                                            shape = MaterialTheme.shapes.large
-                                        ) {
-                                            Text(
-                                                "Save",
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                style = MaterialTheme.typography.labelLarge
-                                            )
-                                        }
                                     }
                                 }
                             }
