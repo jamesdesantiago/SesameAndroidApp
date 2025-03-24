@@ -8,7 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme  // <-- Make sure this import matches your theme package
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
@@ -22,7 +22,7 @@ object ListCache {
     var cachedLists: List<ListResponse>? = null
 }
 
-class HomeActivity : ComponentActivity() {
+class ListActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     private val listService by lazy {
         val okHttpClient = OkHttpClient.Builder()
@@ -48,7 +48,24 @@ class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = FirebaseAuth.getInstance()
-        lifecycleScope.launch { refreshToken() }
+
+        // Check if user is signed in
+        if (auth.currentUser == null) {
+            Log.w("ListActivity", "User not signed in, redirecting to MainActivity")
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
+        // Refresh token
+        lifecycleScope.launch {
+            try {
+                refreshToken()
+            } catch (e: Exception) {
+                Log.e("ListActivity", "Failed to refresh token: ${e.message}")
+                errorMessageState.value = "Failed to authenticate: ${e.message}"
+            }
+        }
 
         setContent {
             val scope = rememberCoroutineScope()
@@ -56,8 +73,13 @@ class HomeActivity : ComponentActivity() {
 
             // Load cached lists if available.
             ListCache.cachedLists?.let { cached ->
-                listsState.clear()
-                listsState.addAll(cached)
+                try {
+                    listsState.clear()
+                    listsState.addAll(cached)
+                } catch (e: Exception) {
+                    Log.e("ListActivity", "Failed to load cached lists: ${e.message}")
+                    ListCache.cachedLists = null // Clear invalid cache
+                }
             }
 
             // Fetch updated lists when this composable first launches.
@@ -65,9 +87,9 @@ class HomeActivity : ComponentActivity() {
                 fetchLists(listsState, errorMessageState)
             }
 
-            // Wrap the HomeScreen in your Compose theme function
+            // Wrap the ListScreen in your Compose theme function
             SesameAppTheme {
-                HomeScreen(
+                ListScreen(
                     lists = listsState,
                     errorMessage = errorMessageState.value,
                     isLoading = isLoadingState,
@@ -84,14 +106,18 @@ class HomeActivity : ComponentActivity() {
                     },
                     onSignOut = {
                         auth.signOut()
+                        ListCache.cachedLists = null // Clear the cache on sign-out
                         finish()
+                    },
+                    onShareList = { list ->
+                        Log.d("ListActivity", "Share list clicked for listId=${list.id}, listName=${list.name}")
                     }
                 )
             }
         }
     }
 
-    // Refresh lists every time HomeActivity resumes.
+    // Refresh lists every time ListActivity resumes.
     override fun onResume() {
         super.onResume()
         lifecycleScope.launch {
@@ -108,28 +134,30 @@ class HomeActivity : ComponentActivity() {
                 if (response.isSuccessful) {
                     val fetchedLists = response.body() ?: emptyList()
                     if (fetchedLists != lists.toList()) {
+                        val newLists = fetchedLists.toMutableList()
                         lists.clear()
-                        lists.addAll(fetchedLists)
-                        // Update cache.
-                        ListCache.cachedLists = fetchedLists
+                        lists.addAll(newLists)
+                        ListCache.cachedLists = newLists
                         Log.d("FastAPI", "Lists updated: ${lists.size}")
                     }
                 } else {
-                    Log.e("FastAPI", "GET failed: ${response.code()} - ${response.errorBody()?.string()}")
-                    errorMessage.value = "Failed to load lists: ${response.code()}"
+                    val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                    Log.e("FastAPI", "GET failed: ${response.code()} - $errorBody")
+                    errorMessage.value = "Failed to load lists: ${response.code()} - $errorBody"
                 }
             } catch (e: Exception) {
-                Log.e("FastAPI", "GET exception: ${e.message}")
+                Log.e("FastAPI", "GET exception: ${e.message}", e)
                 errorMessage.value = "Error loading lists: ${e.message}"
             }
         } else {
             Log.w("FastAPI", "No token for GET")
             errorMessage.value = "Not signed in"
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
         }
     }
 
     private suspend fun getValidToken(): String? {
-        // If cached token is still valid, use it; otherwise fetch a new one
         return if (cachedToken != null && System.currentTimeMillis() / 1000 < tokenExpiry - 300) {
             cachedToken
         } else {
@@ -144,6 +172,7 @@ class HomeActivity : ComponentActivity() {
             tokenExpiry = result?.expirationTimestamp ?: 0
             cachedToken
         } catch (e: Exception) {
+            Log.e("ListActivity", "Token refresh failed: ${e.message}")
             null
         }
     }

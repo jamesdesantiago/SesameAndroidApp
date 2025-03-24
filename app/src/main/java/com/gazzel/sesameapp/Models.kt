@@ -57,3 +57,9 @@ data class PlaceItem(
 data class PlaceUpdate(
     val notes: String? = null
 )
+
+data class Friend(
+    val initials: String,
+    val username: String,
+    val isFollowing: Boolean
+)

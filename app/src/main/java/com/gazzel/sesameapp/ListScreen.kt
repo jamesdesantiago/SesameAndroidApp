@@ -8,10 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,20 +16,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun HomeScreen(
+fun ListScreen(
     lists: List<ListResponse>,
     errorMessage: String?,
     isLoading: Boolean,
-    //onDeleteList: (Int) -> Unit,
-    //onUpdateList: (Int, String) -> Unit,
-    //onTogglePrivacy: (Int, Boolean) -> Unit,
     onOpenList: (ListResponse) -> Unit,
     onAddListClick: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onShareList: (ListResponse) -> Unit // Added this parameter
 ) {
-    var editingListId by remember { mutableStateOf<Int?>(null) }
-    var editingListName by remember { mutableStateOf("") }
-
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
@@ -94,6 +86,16 @@ fun HomeScreen(
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                    }
+
+                                    Row {
+                                        IconButton(onClick = { onShareList(list) }) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Share,
+                                                contentDescription = "Share List",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
                             }

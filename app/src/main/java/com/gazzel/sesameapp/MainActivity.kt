@@ -10,7 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme  // <-- Adjust to match your theme’s package
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -26,19 +26,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         auth = FirebaseAuth.getInstance()
 
-        // Redirect if already signed in
-        if (auth.currentUser != null) {
-            startActivity(Intent(this, HomeActivity::class.java))
-            finish()
-            return
-        }
-
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken("476131428056-je1pi2q8narnv7scq5dhbch1rbbdqbn2.apps.googleusercontent.com") // Your Web Client ID
-            .requestEmail()
-            .build()
-        val googleSignInClient = GoogleSignIn.getClient(this, gso)
-
         setContent {
             val scope = rememberCoroutineScope()
             var isLoading by remember { mutableStateOf(false) }
@@ -46,18 +33,31 @@ class MainActivity : ComponentActivity() {
 
             // Wrap your UI in SesameAppTheme
             SesameAppTheme {
-                LoginScreen(
-                    isLoading = isLoading,
-                    errorMessage = errorMessage,
-                    onGoogleSignInClick = {
-                        isLoading = true
-                        errorMessage = null
-                        scope.launch {
-                            val signInIntent = googleSignInClient.signInIntent
-                            startActivityForResult(signInIntent, RC_SIGN_IN)
+                // Check if the user is signed in
+                if (auth.currentUser != null) {
+                    // If signed in, show the new HomeScreen
+                    NewHomeScreen()
+                } else {
+                    // If not signed in, show the LoginScreen
+                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken("476131428056-je1pi2q8narnv7scq5dhbch1rbbdqbn2.apps.googleusercontent.com")
+                        .requestEmail()
+                        .build()
+                    val googleSignInClient = GoogleSignIn.getClient(this, gso)
+
+                    LoginScreen(
+                        isLoading = isLoading,
+                        errorMessage = errorMessage,
+                        onGoogleSignInClick = {
+                            isLoading = true
+                            errorMessage = null
+                            scope.launch {
+                                val signInIntent = googleSignInClient.signInIntent
+                                startActivityForResult(signInIntent, RC_SIGN_IN)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -71,7 +71,6 @@ class MainActivity : ComponentActivity() {
                 firebaseAuthWithGoogle(account.idToken!!)
             } catch (e: ApiException) {
                 setContent {
-                    // Use SesameAppTheme again for consistency
                     SesameAppTheme {
                         LoginScreen(
                             isLoading = false,
@@ -96,11 +95,14 @@ class MainActivity : ComponentActivity() {
         auth.signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
-                    startActivity(Intent(this, HomeActivity::class.java))
-                    finish()
+                    // Instead of redirecting, recompose to show NewHomeScreen
+                    setContent {
+                        SesameAppTheme {
+                            NewHomeScreen()
+                        }
+                    }
                 } else {
                     setContent {
-                        // Wrap again in SesameAppTheme for styling
                         SesameAppTheme {
                             LoginScreen(
                                 isLoading = false,
