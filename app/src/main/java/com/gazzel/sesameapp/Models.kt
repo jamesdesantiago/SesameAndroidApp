@@ -2,6 +2,7 @@ package com.gazzel.sesameapp
 
 import android.util.Log
 import com.google.gson.annotations.SerializedName
+import java.time.OffsetDateTime
 
 data class ListCreate(
     val name: String,
@@ -62,4 +63,12 @@ data class Friend(
     val initials: String,
     val username: String,
     val isFollowing: Boolean
+)
+
+data class User(
+    val id: Int,
+    val email: String,
+    val username: String,
+    @SerializedName("firebase_uid") val firebaseUid: String,
+    @SerializedName("created_at") val createdAt: OffsetDateTime
 )

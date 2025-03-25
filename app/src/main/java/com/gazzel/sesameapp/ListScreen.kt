@@ -10,10 +10,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.gazzel.sesameapp.listdetail.ShareListOverlay
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @Composable
 fun ListScreen(
@@ -23,8 +26,11 @@ fun ListScreen(
     onOpenList: (ListResponse) -> Unit,
     onAddListClick: () -> Unit,
     onSignOut: () -> Unit,
-    onShareList: (ListResponse) -> Unit // Added this parameter
+    onShareList: (ListResponse) -> Unit
 ) {
+    // State for the list sharing overlay
+    var sharingList by rememberSaveable { mutableStateOf<ListResponse?>(null) }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
@@ -45,82 +51,111 @@ fun ListScreen(
             modifier = Modifier.padding(innerPadding),
             color = MaterialTheme.colorScheme.surface
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Box(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    text = "Your Lists",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(vertical = 24.dp)
-                )
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    items(lists) { list ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { onOpenList(list) }
-                                            .padding(vertical = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = list.name ?: "Unnamed List",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
+                    Text(
+                        text = "Your Lists",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(vertical = 24.dp)
+                    )
 
-                                    Row {
-                                        IconButton(onClick = { onShareList(list) }) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Share,
-                                                contentDescription = "Share List",
-                                                tint = MaterialTheme.colorScheme.primary
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(lists) { list ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable { onOpenList(list) }
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = list.name ?: "Unnamed List",
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
+                                        }
+
+                                        Row {
+                                            IconButton(onClick = {
+                                                sharingList = list
+                                                onShareList(list)
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Share,
+                                                    contentDescription = "Share List",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
+                    errorMessage?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onSignOut,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Sign Out",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
-                errorMessage?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                }
-
-                TextButton(
-                    onClick = onSignOut,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Sign Out",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                // Show ShareListOverlay when sharingList is not null
+                if (sharingList != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                onClick = { sharingList = null }, // Dismiss on outside click
+                                indication = null, // No ripple effect
+                                interactionSource = remember { MutableInteractionSource() }
+                            )
+                            .padding(16.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        ShareListOverlay(
+                            listId = sharingList!!.id,
+                            listName = sharingList!!.name ?: "Unnamed List",
+                            onDismiss = { sharingList = null }
+                        )
+                    }
                 }
             }
         }
