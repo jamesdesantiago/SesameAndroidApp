@@ -110,5 +110,5 @@ Logs all incoming HTTP request headers.
 ---
 
 ## 🧑‍💻 Author
-FastAPI project built by [your team or name here].
+FastAPI project built by James De Santiago.
 
