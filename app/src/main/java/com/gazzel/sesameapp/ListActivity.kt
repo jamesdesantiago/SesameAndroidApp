@@ -5,17 +5,26 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import com.google.firebase.auth.FirebaseAuth
 
 // In-memory cache for the list of lists.
 object ListCache {
@@ -111,6 +120,34 @@ class ListActivity : ComponentActivity() {
                     },
                     onShareList = { list ->
                         Log.d("ListActivity", "Share list clicked for listId=${list.id}, listName=${list.name}")
+                    },
+                    onDeleteList = { listId ->
+                        scope.launch {
+                            val token = getValidToken()
+                            if (token != null) {
+                                try {
+                                    val response = listService.deleteList(
+                                        listId = listId,
+                                        token = "Bearer $token"
+                                    )
+                                    if (response.isSuccessful) {
+                                        Log.d("ListActivity", "List $listId deleted successfully")
+                                        PlaceUpdateManager.notifyListDeleted() // Notify that a list was deleted
+                                        // Remove the deleted list from the local state
+                                        listsState.removeIf { it.id == listId }
+                                        ListCache.cachedLists = listsState.toList() // Update the cache
+                                    } else {
+                                        Log.e("ListActivity", "Failed to delete list: ${response.code()} - ${response.errorBody()?.string()}")
+                                        errorMessageState.value = "Failed to delete list: ${response.message()}"
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("ListActivity", "Exception deleting list: ${e.message}", e)
+                                    errorMessageState.value = "Failed to delete list: ${e.message}"
+                                }
+                            } else {
+                                errorMessageState.value = "Not signed in"
+                            }
+                        }
                     }
                 )
             }
@@ -143,15 +180,15 @@ class ListActivity : ComponentActivity() {
                 } else {
                     val errorBody = response.errorBody()?.string() ?: "Unknown error"
                     Log.e("FastAPI", "GET failed: ${response.code()} - $errorBody")
-                    errorMessage.value = "Failed to load lists: ${response.code()} - $errorBody"
+                    errorMessageState.value = "Failed to load lists: ${response.code()} - $errorBody"
                 }
             } catch (e: Exception) {
                 Log.e("FastAPI", "GET exception: ${e.message}", e)
-                errorMessage.value = "Error loading lists: ${e.message}"
+                errorMessageState.value = "Error loading lists: ${e.message}"
             }
         } else {
             Log.w("FastAPI", "No token for GET")
-            errorMessage.value = "Not signed in"
+            errorMessageState.value = "Not signed in"
             startActivity(Intent(this, MainActivity::class.java))
             finish()
         }
@@ -174,6 +211,120 @@ class ListActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e("ListActivity", "Token refresh failed: ${e.message}")
             null
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ListScreen(
+    lists: List<ListResponse>,
+    errorMessage: String?,
+    isLoading: Boolean,
+    onOpenList: (ListResponse) -> Unit,
+    onAddListClick: () -> Unit,
+    onSignOut: () -> Unit,
+    onShareList: (ListResponse) -> Unit,
+    onDeleteList: (Int) -> Unit // Callback for deleting a list
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Your Lists") },
+                actions = {
+                    TextButton(onClick = onSignOut) {
+                        Text("Sign Out", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddListClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add List"
+                )
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                )
+            }
+
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            if (lists.isEmpty() && !isLoading) {
+                Text(
+                    text = "No lists found. Create a new list to get started!",
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            } else {
+                lists.forEach { list ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        onClick = { onOpenList(list) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = list.name,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                // Removed reference to createdAt since it's not in ListResponse
+                                // If your backend provides createdAt, add it to ListResponse and uncomment this:
+                                // Text(
+                                //     text = "Created: ${list.createdAt}",
+                                //     style = MaterialTheme.typography.bodySmall
+                                // )
+                            }
+                            Row {
+                                IconButton(onClick = { onShareList(list) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share List"
+                                    )
+                                }
+                                IconButton(onClick = { onDeleteList(list.id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete List",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

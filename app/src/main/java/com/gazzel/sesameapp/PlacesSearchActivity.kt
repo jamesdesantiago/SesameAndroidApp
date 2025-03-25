@@ -72,6 +72,7 @@ class PlacesSearchActivity : ComponentActivity() {
                                     )
                                     if (response.isSuccessful) {
                                         Log.d("FastAPI", "Place added successfully to list $listId with rating: $userRating and visit status: $visitStatus")
+                                        PlaceUpdateManager.notifyPlaceAdded() // Notify that a new place was added
                                         finish()
                                     } else {
                                         Log.e(

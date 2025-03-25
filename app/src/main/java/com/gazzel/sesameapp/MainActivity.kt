@@ -47,90 +47,83 @@ class MainActivity : ComponentActivity() {
             var isLoading by remember { mutableStateOf(false) }
             var errorMessage by remember { mutableStateOf<String?>(null) }
             var needsUsername by remember { mutableStateOf(false) }
-            var isCheckingUsername by remember { mutableStateOf(false) }
+            var usernameCheckComplete by remember { mutableStateOf(false) }
 
             SesameAppTheme {
                 if (auth.currentUser != null) {
                     // Check if the user needs to set a username
-                    LaunchedEffect(isCheckingUsername) {
-                        if (!isCheckingUsername) {
-                            isCheckingUsername = true
+                    LaunchedEffect(auth.currentUser) {
+                        if (!usernameCheckComplete) {
+                            isLoading = true
                             scope.launch {
                                 try {
                                     if (auth.currentUser == null) {
                                         throw Exception("No authenticated user found")
                                     }
-                                    val getTokenResult: GetTokenResult? = auth.currentUser?.getIdToken(true)?.await()
-                                    if (getTokenResult == null) {
-                                        throw Exception("Failed to fetch token")
-                                    }
-                                    val token: String? = getTokenResult.getToken()
-                                    if (token == null || token.isEmpty()) {
-                                        throw Exception("Fetched token is empty or null")
-                                    }
+
+                                    val token = auth.currentUser?.getIdToken(true)?.await()?.token
+                                        ?: throw Exception("Failed to fetch token")
+
                                     val authorizationHeader = "Bearer $token"
-                                    // Use the token in your API call
+
+                                    // Use the token to check if username is needed
                                     val response = ApiClient.usernameService.checkUsername(
                                         authorization = authorizationHeader
                                     )
+
                                     if (response.isSuccessful) {
-                                        // Handle successful response
+                                        val checkUsernameResponse = response.body()
+                                        if (checkUsernameResponse != null) {
+                                            needsUsername = checkUsernameResponse.needsUsername
+                                            usernameCheckComplete = true
+                                        } else {
+                                            throw Exception("Empty response body")
+                                        }
                                     } else {
-                                        throw Exception("API call failed: ${response.message()}")
+                                        // Parse the error message if possible
+                                        val errorBody = response.errorBody()?.string()
+                                        val errorMessageJson = errorBody?.let {
+                                            Gson().fromJson(it, JsonObject::class.java)
+                                        }
+                                        val errorMsg = errorMessageJson?.get("detail")?.asString
+                                            ?: "Failed to check username status: ${response.message()}"
+                                        throw Exception(errorMsg)
                                     }
                                 } catch (e: Exception) {
-                                    // Handle errors (e.g., show an error message)
-                                    auth.signOut() // Optional: sign out on error
+                                    errorMessage = "Error checking username: ${e.message}"
+                                    // On error, assume the user needs a username to be safe
+                                    needsUsername = true
+                                    usernameCheckComplete = true
+                                } finally {
+                                    isLoading = false
                                 }
                             }
                         }
                     }
 
-                    if (errorMessage != null) {
-                        // Show error if username check fails
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.background
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = errorMessage ?: "Unknown error",
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(
-                                    onClick = {
-                                        auth.signOut()
-                                        // Reset state to show LoginScreen
-                                        isCheckingUsername = false
-                                        needsUsername = false
-                                        errorMessage = null
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ),
-                                    shape = MaterialTheme.shapes.medium
-                                ) {
-                                    Text(
-                                        text = "Sign Out and Try Again",
-                                        style = MaterialTheme.typography.labelLarge
-                                    )
-                                }
+                    // Show loading screen while checking username status
+                    if (!usernameCheckComplete || isLoading) {
+                        LoadingScreen()
+                    }
+                    // Show error screen if there's an error
+                    else if (errorMessage != null) {
+                        ErrorScreen(
+                            errorMessage = errorMessage ?: "Unknown error",
+                            onRetry = {
+                                // Reset states and try again
+                                errorMessage = null
+                                usernameCheckComplete = false
+                            },
+                            onSignOut = {
+                                auth.signOut()
+                                errorMessage = null
+                                usernameCheckComplete = false
+                                needsUsername = false
                             }
-                        }
-                    } else if (needsUsername) {
+                        )
+                    }
+                    // Show username creation screen if needed
+                    else if (needsUsername) {
                         UsernameScreen(
                             isLoading = isLoading,
                             errorMessage = errorMessage,
@@ -139,14 +132,17 @@ class MainActivity : ComponentActivity() {
                                 errorMessage = null
                                 scope.launch {
                                     try {
-                                        val token = auth.currentUser?.getIdToken(true)?.await()
+                                        val token = auth.currentUser?.getIdToken(true)?.await()?.token
                                             ?: throw Exception("No token available")
+
                                         val response = ApiClient.usernameService.setUsername(
                                             authorization = "Bearer $token",
                                             request = UsernameRequest(username)
                                         )
+
                                         if (response.isSuccessful) {
-                                            needsUsername = false // Proceed to NewHomeScreen
+                                            // Username successfully set
+                                            needsUsername = false
                                         } else {
                                             // Parse the error body to get the detailed message
                                             val errorBody = response.errorBody()?.string()
@@ -164,10 +160,13 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
-                    } else {
+                    }
+                    // Show main app screen if all checks pass
+                    else {
                         NewHomeScreen()
                     }
                 } else {
+                    // User is not logged in, show login screen
                     val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                         .requestIdToken(getString(R.string.default_web_client_id))
                         .requestEmail()
@@ -186,10 +185,10 @@ class MainActivity : ComponentActivity() {
                         onAppleSignInClick = {
                             isLoading = true
                             errorMessage = null
-                            // Placeholder for Apple Sign-In implementation
                             // TODO: Implement Apple Sign-In
+                            // For now, display a message that it's coming soon
                             isLoading = false
-                            errorMessage = "Apple Sign-In not implemented yet"
+                            errorMessage = "Apple Sign-In coming soon"
                         }
                     )
                 }
@@ -234,7 +233,139 @@ class MainActivity : ComponentActivity() {
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     println("Firebase Auth Success: User = ${auth.currentUser?.email}")
-                    // The LaunchedEffect in setContent will handle checking if a username is needed
+                    // Username check will happen in LaunchedEffect in setContent
+                    setContent {
+                        SesameAppTheme {
+                            val scope = rememberCoroutineScope()
+                            var isLoading by remember { mutableStateOf(true) }
+                            var errorMessage by remember { mutableStateOf<String?>(null) }
+                            var needsUsername by remember { mutableStateOf(false) }
+                            var usernameCheckComplete by remember { mutableStateOf(false) }
+
+                            if (auth.currentUser != null) {
+                                // Check if the user needs to set a username
+                                LaunchedEffect(auth.currentUser) {
+                                    if (!usernameCheckComplete) {
+                                        scope.launch {
+                                            try {
+                                                val token = auth.currentUser?.getIdToken(true)?.await()?.token
+                                                    ?: throw Exception("Failed to fetch token")
+
+                                                val authorizationHeader = "Bearer $token"
+
+                                                val response = ApiClient.usernameService.checkUsername(
+                                                    authorization = authorizationHeader
+                                                )
+
+                                                if (response.isSuccessful) {
+                                                    val checkUsernameResponse = response.body()
+                                                    if (checkUsernameResponse != null) {
+                                                        needsUsername = checkUsernameResponse.needsUsername
+                                                        usernameCheckComplete = true
+                                                    } else {
+                                                        throw Exception("Empty response body")
+                                                    }
+                                                } else {
+                                                    val errorBody = response.errorBody()?.string()
+                                                    val errorMessageJson = errorBody?.let {
+                                                        Gson().fromJson(it, JsonObject::class.java)
+                                                    }
+                                                    val errorMsg = errorMessageJson?.get("detail")?.asString
+                                                        ?: "Failed to check username status: ${response.message()}"
+                                                    throw Exception(errorMsg)
+                                                }
+                                            } catch (e: Exception) {
+                                                errorMessage = "Error checking username: ${e.message}"
+                                                // Assume username is needed on error
+                                                needsUsername = true
+                                                usernameCheckComplete = true
+                                            } finally {
+                                                isLoading = false
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!usernameCheckComplete || isLoading) {
+                                    LoadingScreen()
+                                } else if (errorMessage != null) {
+                                    ErrorScreen(
+                                        errorMessage = errorMessage ?: "Unknown error",
+                                        onRetry = {
+                                            errorMessage = null
+                                            usernameCheckComplete = false
+                                        },
+                                        onSignOut = {
+                                            auth.signOut()
+                                            errorMessage = null
+                                            usernameCheckComplete = false
+                                            needsUsername = false
+                                        }
+                                    )
+                                } else if (needsUsername) {
+                                    UsernameScreen(
+                                        isLoading = isLoading,
+                                        errorMessage = errorMessage,
+                                        onSetUsername = { username ->
+                                            isLoading = true
+                                            errorMessage = null
+                                            scope.launch {
+                                                try {
+                                                    val token = auth.currentUser?.getIdToken(true)?.await()?.token
+                                                        ?: throw Exception("No token available")
+
+                                                    val response = ApiClient.usernameService.setUsername(
+                                                        authorization = "Bearer $token",
+                                                        request = UsernameRequest(username)
+                                                    )
+
+                                                    if (response.isSuccessful) {
+                                                        needsUsername = false
+                                                    } else {
+                                                        val errorBody = response.errorBody()?.string()
+                                                        val errorMessageJson = errorBody?.let {
+                                                            Gson().fromJson(it, JsonObject::class.java)
+                                                        }
+                                                        errorMessage = errorMessageJson?.get("detail")?.asString
+                                                            ?: "Failed to set username: ${response.message()}"
+                                                    }
+                                                } catch (e: Exception) {
+                                                    errorMessage = "Error: ${e.message}"
+                                                } finally {
+                                                    isLoading = false
+                                                }
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    NewHomeScreen()
+                                }
+                            } else {
+                                // This should not happen as we've just signed in, but handling it just in case
+                                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                    .requestIdToken(getString(R.string.default_web_client_id))
+                                    .requestEmail()
+                                    .build()
+                                val googleSignInClient = GoogleSignIn.getClient(this@MainActivity, gso)
+
+                                LoginScreen(
+                                    isLoading = isLoading,
+                                    errorMessage = errorMessage,
+                                    onGoogleSignInClick = {
+                                        isLoading = true
+                                        errorMessage = null
+                                        val signInIntent = googleSignInClient.signInIntent
+                                        startActivityForResult(signInIntent, RC_SIGN_IN)
+                                    },
+                                    onAppleSignInClick = {
+                                        // TODO: Implement Apple Sign-In
+                                        isLoading = false
+                                        errorMessage = "Apple Sign-In coming soon"
+                                    }
+                                )
+                            }
+                        }
+                    }
                 } else {
                     println("Firebase Auth Failed: ${task.exception?.message}")
                     setContent {
@@ -251,13 +382,123 @@ class MainActivity : ComponentActivity() {
                                     )
                                 },
                                 onAppleSignInClick = {
-                                    // Placeholder for Apple Sign-In
+                                    // TODO: Implement Apple Sign-In
                                 }
                             )
                         }
                     }
                 }
             }
+    }
+}
+
+@Composable
+fun LoadingScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Sesame",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            CircularProgressIndicator(
+                modifier = Modifier.size(48.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Loading...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+fun ErrorScreen(
+    errorMessage: String,
+    onRetry: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Oops!",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Button(
+                onClick = onRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(
+                    text = "Retry",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onSignOut,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(
+                    text = "Sign Out",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
     }
 }
 
@@ -439,7 +680,26 @@ fun UsernameScreen(
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Username creation prompt
+            Text(
+                text = "Let's create your username",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "This will be how people find and mention you on Sesame.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             var username by remember { mutableStateOf("") }
             var clientError by remember { mutableStateOf<String?>(null) }
@@ -481,7 +741,7 @@ fun UsernameScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Done Button
             Button(
