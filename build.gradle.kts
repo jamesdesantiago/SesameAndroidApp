@@ -7,8 +7,12 @@
  */
 
 plugins {
-    // Apply the dependency updates plugin at the project level
+    // The dependency updates plugin
     id("com.github.ben-manes.versions") version "0.51.0"
+
+    // Hilt & Google services "apply false" from the version catalog if you want
+    alias(libs.plugins.hilt) apply false
+    alias(libs.plugins.google.services) apply false
 }
 
 allprojects {
@@ -18,11 +22,12 @@ allprojects {
     }
 }
 
+
 // Configure the dependencyUpdates task to check for dependency updates
-tasks.named<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask>("dependencyUpdates") {
+tasks.named<com.github.ben-manes.gradle.versions.updates.DependencyUpdatesTask>("dependencyUpdates") {
     // Check for Gradle updates
     checkForGradleUpdate = true
-    // Set the output directory for the dependency updates report (as a String)
+    // Set the output directory for the dependency updates report
     outputDir = "build/dependencyUpdates"
     // Set the name of the report file (without extension)
     reportfileName = "report"
