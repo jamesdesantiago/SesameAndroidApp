@@ -1,27 +1,14 @@
-/**
- * Settings script for the Sesame Android app.
- *
- * This script configures project-wide settings, including the project name and dependency resolution
- * management. Gradle automatically uses the version catalog defined in gradle/libs.versions.toml.
- */
+// MINIMAL settings.gradle.kts relying on convention
 
 pluginManagement {
     repositories {
-        google() // Prioritize Google's Maven repository for AGP
+        google()
         gradlePluginPortal()
         mavenCentral()
-    }
-    resolutionStrategy {
-        eachPlugin {
-            if (requested.id.id == "com.android.application") {
-                useModule("com.android.tools.build:gradle:${requested.version}")
-            }
-        }
     }
 }
 
 rootProject.name = "SesameAndroidApp"
-
 include(":app")
 
 dependencyResolutionManagement {
@@ -30,9 +17,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
     }
-    versionCatalogs {
-        create("libs") {
-            from(files("gradle/libs.versions.toml"))
-        }
-    }
+    // versionCatalogs block removed
 }
+
+println(">>> Minimal settings.gradle.kts (CONVENTION) executed")

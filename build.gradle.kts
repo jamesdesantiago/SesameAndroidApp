@@ -6,6 +6,8 @@
  * for checking dependency versions.
  */
 
+import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+
 plugins {
     // The dependency updates plugin
     id("com.github.ben-manes.versions") version "0.51.0"
@@ -15,20 +17,16 @@ plugins {
     alias(libs.plugins.google.services) apply false
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-
 // Configure the dependencyUpdates task to check for dependency updates
-tasks.named<com.github.ben-manes.gradle.versions.updates.DependencyUpdatesTask>("dependencyUpdates") {
+// Configure the dependencyUpdates task to check for dependency updates
+tasks.named("dependencyUpdates") {
+    // Cast 'this' to the specific task type
+    val task = this as DependencyUpdatesTask // <-- ADD THIS CAST
+
     // Check for Gradle updates
-    checkForGradleUpdate = true
+    task.checkForGradleUpdate = true // <-- Use 'task.' prefix
     // Set the output directory for the dependency updates report
-    outputDir = "build/dependencyUpdates"
+    task.outputDir = "build/dependencyUpdates" // <-- Use 'task.' prefix
     // Set the name of the report file (without extension)
-    reportfileName = "report"
+    task.reportfileName = "report" // <-- Use 'task.' prefix
 }
