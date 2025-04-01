@@ -1,7 +1,6 @@
 package com.gazzel.sesameapp.data.repository
 
-import com.gazzel.sesameapp.data.local.UserDao
-import com.gazzel.sesameapp.data.mapper.toDomain
+import com.gazzel.sesameapp.data.local.dao.UserDao
 import com.gazzel.sesameapp.data.model.User as DataUser
 import com.gazzel.sesameapp.data.remote.UserApiService
 import com.gazzel.sesameapp.data.remote.UsernameUpdateRequest
@@ -17,26 +16,47 @@ class UserRepositoryImpl @Inject constructor(
     private val userApiService: UserApiService,
     private val userDao: UserDao
 ) : UserRepository {
-    override suspend fun getCurrentUser(): Flow<DomainUser> {
-        return flow {
-            val user = userDao.getCurrentUser()
-            user?.let { emit(it.toDomain()) }
-        }
-    }
-
-    override suspend fun updateUsername(username: String): Result<Unit> {
-        return try {
-            userApiService.updateUsername(UsernameUpdateRequest(username))
-            Result.success(Unit)
+    override suspend fun getCurrentUser(): Flow<DomainUser> = flow {
+        try {
+            val dataUser = userApiService.getCurrentUser()
+            userDao.insertUser(dataUser)
+            emit(dataUser.toDomain())
         } catch (e: Exception) {
-            Result.failure(e)
+            val localUser = userDao.getCurrentUser()
+            if (localUser != null) {
+                emit(localUser.toDomain())
+            } else {
+                throw e // Propagate error if no local data
+            }
         }
     }
 
-    override suspend fun checkUsername(): Flow<Boolean> {
-        return flow {
+    override suspend fun updateUsername(username: String): Result<Unit> = runCatching {
+        userApiService.updateUsername(UsernameUpdateRequest(username))
+        // Optionally update local data if the API call changes the user's profile
+        val currentUser = userDao.getCurrentUser()
+        if (currentUser != null) {
+            userDao.insertUser(currentUser.copy(username = username))
+        }
+    }
+
+    override suspend fun checkUsername(): Flow<Boolean> = flow {
+        try {
             val response = userApiService.checkUsername()
             emit(response.needsUsername)
+        } catch (e: Exception) {
+            throw e // Propagate error instead of defaulting to true
         }
     }
+}
+
+// Mapper (could be moved to a separate file)
+fun DataUser.toDomain(): DomainUser {
+    return DomainUser(
+        id = this.id,
+        email = this.email,
+        username = this.username,
+        displayName = this.displayName,
+        profilePicture = this.profilePicture
+    )
 }

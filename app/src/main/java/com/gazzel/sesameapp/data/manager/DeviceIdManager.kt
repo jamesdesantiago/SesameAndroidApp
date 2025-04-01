@@ -105,7 +105,7 @@ class DeviceIdManager @Inject constructor(
                 // ANDROID_ID is unique to each app installation
                 Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID),
                 // SSID provides network context
-                Settings.Secure.getString(context.contentResolver, Settings.Secure.SSID),
+                // Settings.Secure.getString(context.contentResolver, Settings.Secure.SSID),
                 // Timestamp ensures uniqueness across resets
                 System.currentTimeMillis().toString()
             )
@@ -142,7 +142,7 @@ class DeviceIdManager @Inject constructor(
      * Use cases:
      * - User explicitly requests device reset
      * - Security breach detection
-     * - App reinstallation
+     * - App re-installation
      *
      * @throws SecurityException if ID reset fails
      */

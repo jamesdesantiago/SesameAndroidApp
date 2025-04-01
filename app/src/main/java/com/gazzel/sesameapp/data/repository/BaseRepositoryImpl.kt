@@ -41,9 +41,8 @@ abstract class BaseRepositoryImpl<T> protected constructor(
     override suspend fun create(item: T): Result<String> {
         return try {
             val docRef = firestore.collection(collectionPath).document()
-            val itemWithId = item.toMap().toMutableMap().apply {
-                put("id", docRef.id)
-            }
+            val itemWithId: MutableMap<String, Any> = item.toMap().toMutableMap()
+            itemWithId["id"] = docRef.id
             docRef.set(itemWithId).await()
             Result.success(docRef.id)
         } catch (e: Exception) {
@@ -97,14 +96,14 @@ abstract class BaseRepositoryImpl<T> protected constructor(
         return query
     }
 
-    private fun handleException(e: Exception): AppException {
+    protected fun handleException(e: Exception): AppException {
         return when (e) {
             is com.google.firebase.firestore.FirebaseFirestoreException -> {
                 when (e.code) {
                     com.google.firebase.firestore.FirebaseFirestoreException.Code.NOT_FOUND ->
                         AppException.ResourceNotFoundException(e.message ?: "Resource not found")
                     com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                        AppException.AuthenticationException(e.message ?: "Permission denied")
+                        AppException.AuthException(e.message ?: "Permission denied")
                     else -> AppException.DatabaseException(e.message ?: "Database error")
                 }
             }

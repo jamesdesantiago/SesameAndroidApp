@@ -7,11 +7,13 @@ import androidx.core.content.ContextCompat
 import com.gazzel.sesameapp.domain.repository.LocationRepository
 import com.gazzel.sesameapp.domain.util.Resource
 import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.google.android.gms.location.LocationServices
+import android.location.Location
+
 
 class LocationRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -44,7 +46,6 @@ class LocationRepositoryImpl @Inject constructor(
 
     override suspend fun requestLocationPermission(): Boolean {
         // This should be handled by the UI layer using ActivityResultContracts
-        // This is just a placeholder
         return false
     }
-} 
+}

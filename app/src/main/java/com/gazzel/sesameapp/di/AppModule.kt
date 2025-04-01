@@ -5,10 +5,8 @@ import androidx.room.Room
 import com.gazzel.sesameapp.data.local.AppDatabase
 import com.gazzel.sesameapp.data.local.dao.UserDao
 import com.gazzel.sesameapp.data.remote.UserApiService
-import com.gazzel.sesameapp.data.repository.UserRepository
 import com.gazzel.sesameapp.data.repository.UserRepositoryImpl
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.gazzel.sesameapp.domain.repository.UserRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,4 +42,4 @@ object AppModule {
     ): UserRepository {
         return UserRepositoryImpl(userApiService, userDao)
     }
-} 
+}

@@ -7,8 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import com.gazzel.sesameapp.data.service.PlacesApiService
-import com.gazzel.sesameapp.data.service.ListService
-import com.gazzel.sesameapp.domain.model.PlaceCreate
+import com.gazzel.sesameapp.data.service.UserListService // Use UserListService instead of ListService
+import com.gazzel.sesameapp.data.service.PlaceCreate // Updated to match your domain model
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 class PlacesSearchActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var placesApiService: PlacesApiService
+    private lateinit var listService: UserListService // Changed to UserListService
     private var cachedToken: String? = null
     private var tokenExpiry: Long = 0
 
@@ -41,7 +42,14 @@ class PlacesSearchActivity : ComponentActivity() {
             .build()
             .create(PlacesApiService::class.java)
 
-        val listId = intent.getIntExtra("listId", -1)
+        listService = Retrofit.Builder()
+            .baseUrl("https://gazzel.io/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(UserListService::class.java)
+
+        val listId = intent.getStringExtra("listId") ?: "" // Changed to String
 
         setContent {
             SesameAppTheme {
@@ -52,30 +60,21 @@ class PlacesSearchActivity : ComponentActivity() {
                             val token = getValidToken()
                             if (token != null) {
                                 try {
-                                    val listService = Retrofit.Builder()
-                                        .baseUrl("https://gazzel.io/")
-                                        .client(okHttpClient)
-                                        .addConverterFactory(GsonConverterFactory.create())
-                                        .build()
-                                        .create(ListService::class.java)
-
                                     val response = listService.addPlace(
-                                        listId,
-                                        PlaceCreate(
+                                        listId = listId,
+                                        place = PlaceCreate(
                                             placeId = place.id,
                                             name = place.displayName.text,
                                             address = place.formattedAddress,
                                             latitude = place.location.latitude,
                                             longitude = place.location.longitude,
-                                            rating = userRating, // User's qualitative rating
-                                            notes = null, // Don't store the Google Places rating
-                                            visitStatus = visitStatus // Pass the user-selected visit status
+                                            rating = userRating
                                         ),
-                                        "Bearer $token"
+                                        authorization = "Bearer $token"
                                     )
                                     if (response.isSuccessful) {
                                         Log.d("FastAPI", "Place added successfully to list $listId with rating: $userRating and visit status: $visitStatus")
-                                        PlaceUpdateManager.notifyPlaceAdded() // Notify that a new place was added
+                                        PlaceUpdateManager.notifyPlaceAdded()
                                         finish()
                                     } else {
                                         Log.e(
@@ -130,4 +129,4 @@ class PlacesSearchActivity : ComponentActivity() {
             null
         }
     }
-} 
+}

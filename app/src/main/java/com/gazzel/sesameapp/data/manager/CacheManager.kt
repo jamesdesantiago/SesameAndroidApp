@@ -3,13 +3,14 @@ package com.gazzel.sesameapp.data.manager
 import android.content.Context
 import androidx.room.Room
 import com.gazzel.sesameapp.data.local.AppDatabase
-import com.gazzel.sesameapp.domain.exception.DatabaseException
+import com.gazzel.sesameapp.data.local.CacheEntity
+import com.gazzel.sesameapp.domain.exception.AppException.DatabaseException
 import com.gazzel.sesameapp.domain.util.Logger
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class CacheManager @Inject constructor(
@@ -35,7 +36,7 @@ class CacheManager @Inject constructor(
             database.cacheDao().insert(
                 CacheEntity(
                     key = key,
-                    data = data,
+                    data = data.toString(),
                     expiryTime = expiryTime
                 )
             )

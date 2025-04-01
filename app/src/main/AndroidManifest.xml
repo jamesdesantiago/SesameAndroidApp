@@ -36,7 +36,11 @@
             android:name=".presentation.activities.AddListActivity"
             android:exported="true" />
         <activity
-            android:name=".presentation.activities.PlacesSearchActivity" />
+            android:name=".presentation.activities.CreateListActivity"
+            android:exported="true" />
+        <activity
+            android:name=".presentation.activities.PlacesSearchActivity"
+            android:exported="false" />
         <activity
             android:name=".presentation.activities.FriendsActivity"
             android:exported="false" />

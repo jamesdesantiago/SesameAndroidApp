@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.gazzel.sesameapp.data.service.ListCreate
 import com.gazzel.sesameapp.data.service.UserListService
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -60,8 +60,8 @@ class CreateListActivity : ComponentActivity() {
                 CreateListScreen(
                     onCancel = { finish() },
                     onCreateSuccess = { listId, listName ->
-                        val intent = Intent(this, PlaceSearchActivity::class.java).apply {
-                            putExtra("listId", listId)
+                        val intent = Intent(this, PlacesSearchActivity::class.java).apply {
+                            putExtra("listId", listId) // Now passing String
                         }
                         startActivity(intent)
                         finish()
@@ -74,7 +74,7 @@ class CreateListActivity : ComponentActivity() {
     @Composable
     fun CreateListScreen(
         onCancel: () -> Unit,
-        onCreateSuccess: (Int, String) -> Unit
+        onCreateSuccess: (String, String) -> Unit // Changed listId to String
     ) {
         val scope = rememberCoroutineScope()
         var listName by remember { mutableStateOf("") }
@@ -246,16 +246,25 @@ class CreateListActivity : ComponentActivity() {
                                     try {
                                         isLoading = true
                                         val token = getAuthToken()
-                                        val response = listService.createList(
-                                            token = token,
+                                        val request = ListCreate(
                                             name = listName,
                                             isPrivate = isPrivate,
                                             collaborators = collaborators
                                         )
-                                        onCreateSuccess(response.id, response.name)
+                                        val response = listService.createList(
+                                            list = request,
+                                            token = "Bearer $token"
+                                        )
+                                        if (response.isSuccessful) {
+                                            val listResponse = response.body()!!
+                                            onCreateSuccess(listResponse.id, listResponse.name)
+                                        } else {
+                                            errorMessage = "Failed to create list: ${response.message()}"
+                                            Log.e("CreateListActivity", "Error: ${response.errorBody()?.string()}")
+                                        }
                                     } catch (e: Exception) {
                                         errorMessage = e.message
-                                        Log.e("CreateListActivity", "Error creating list", e)
+                                        Log.e("CreateListActivity", "Exception creating list", e)
                                     } finally {
                                         isLoading = false
                                     }
@@ -338,9 +347,10 @@ class CreateListActivity : ComponentActivity() {
         }
 
         val user = auth.currentUser ?: throw Exception("User not authenticated")
-        val token = user.getIdToken(false).await().token
+        val tokenResult = user.getIdToken(false).await()
+        val token = tokenResult.token ?: throw Exception("Failed to retrieve auth token")
         cachedToken = token
         tokenExpiry = System.currentTimeMillis() + 3600000 // Token expires in 1 hour
         return token
     }
-} 
+}

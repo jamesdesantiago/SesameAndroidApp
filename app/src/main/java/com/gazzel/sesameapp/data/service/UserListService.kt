@@ -1,7 +1,10 @@
 package com.gazzel.sesameapp.data.service
 
-import com.gazzel.sesameapp.domain.model.List
-import com.gazzel.sesameapp.domain.model.Place
+import com.gazzel.sesameapp.domain.model.ListCreate
+import com.gazzel.sesameapp.domain.model.ListResponse // Import from domain.model
+import com.gazzel.sesameapp.domain.model.ListUpdate
+import com.gazzel.sesameapp.domain.model.CollaboratorAdd
+import com.gazzel.sesameapp.domain.model.Place // Use domain Place
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -75,14 +78,6 @@ data class ListCreate(
 data class ListUpdate(
     val name: String? = null,
     val isPrivate: Boolean? = null
-)
-
-data class ListResponse(
-    val id: String,
-    val name: String,
-    val isPrivate: Boolean,
-    val collaborators: List<String>,
-    val places: List<Place>
 )
 
 data class CollaboratorAdd(

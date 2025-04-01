@@ -1,7 +1,7 @@
 package com.gazzel.sesameapp.di
 
 import com.gazzel.sesameapp.data.remote.UserApiService
-import com.gazzel.sesameapp.data.service.ListService
+import com.gazzel.sesameapp.data.service.UserListService // Updated to UserListService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -48,7 +48,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideListService(retrofit: Retrofit): ListService {
-        return retrofit.create(ListService::class.java)
+    fun provideUserListService(retrofit: Retrofit): UserListService { // Updated to UserListService
+        return retrofit.create(UserListService::class.java)
     }
-} 
+}

@@ -8,6 +8,8 @@ import com.gazzel.sesameapp.domain.repository.ListRepository
 import com.gazzel.sesameapp.domain.util.Result
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.snapshots
+import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -18,8 +20,8 @@ import javax.inject.Singleton
 
 @Singleton
 class ListRepositoryImpl @Inject constructor(
-    private val firestore: FirebaseFirestore
-) : ListRepository {
+    firestore: FirebaseFirestore
+) : BaseRepositoryImpl<SesameList>(firestore, "lists"), ListRepository {
 
     override fun getUserLists(userId: String): Flow<List<SesameList>> {
         return firestore.collection("lists")
@@ -99,33 +101,39 @@ class ListRepositoryImpl @Inject constructor(
             }
     }
 
-    override fun T.toMap(): Map<String, Any> = (this as SesameList).toDto().let { dto ->
-        mapOf(
-            "id" to dto.id,
-            "title" to dto.title,
-            "description" to dto.description,
-            "userId" to dto.userId,
-            "createdAt" to dto.createdAt,
-            "updatedAt" to dto.updatedAt,
-            "isPublic" to dto.isPublic,
-            "placeCount" to dto.placeCount,
-            "followerCount" to dto.followerCount
-        )
+    override fun SesameList.toMap(): Map<String, Any> {
+        return this.toDto().let { dto ->
+            mapOf<String, Any>(
+                "id" to dto.id,
+                "title" to dto.title,
+                "description" to (dto.description ?: ""),  // Provide a default for null
+                "userId" to dto.userId,
+                "createdAt" to dto.createdAt,
+                "updatedAt" to dto.updatedAt,
+                "isPublic" to dto.isPublic,
+                "placeCount" to dto.placeCount,
+                "followerCount" to dto.followerCount
+            )
+        }
     }
 
-    override fun Map<String, Any>.toEntity(id: String): SesameList = ListDto(
-        id = id,
-        title = get("title") as? String ?: "",
-        description = get("description") as? String,
-        userId = get("userId") as? String ?: "",
-        createdAt = get("createdAt") as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-        updatedAt = get("updatedAt") as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
-        isPublic = get("isPublic") as? Boolean ?: false,
-        placeCount = get("placeCount") as? Int ?: 0,
-        followerCount = get("followerCount") as? Int ?: 0
-    ).toDomain()
 
-    override fun getId(item: T): String = (item as SesameList).id
+
+    override fun Map<String, Any>.toEntity(id: String): SesameList {
+        return ListDto(
+            id = id,
+            title = get("title") as? String ?: "",
+            description = get("description") as? String,
+            userId = get("userId") as? String ?: "",
+            createdAt = get("createdAt") as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+            updatedAt = get("updatedAt") as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now(),
+            isPublic = get("isPublic") as? Boolean ?: false,
+            placeCount = get("placeCount") as? Int ?: 0,
+            followerCount = get("followerCount") as? Int ?: 0
+        ).toDomain()
+    }
+
+    override fun getId(item: SesameList): String = item.id
 
     override suspend fun addPlaceToList(listId: String, placeId: String): Result<Unit> {
         return try {

@@ -1,5 +1,3 @@
-// MINIMAL settings.gradle.kts relying on convention
-
 pluginManagement {
     repositories {
         google()
@@ -7,17 +5,13 @@ pluginManagement {
         mavenCentral()
     }
 }
-
-rootProject.name = "SesameAndroidApp"
+rootProject.name = "SesameAppRefactored" // New name to avoid cache confusion
 include(":app")
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
     }
-    // versionCatalogs block removed
 }
-
-println(">>> Minimal settings.gradle.kts (CONVENTION) executed")
+println(">>> Settings V_WorkingBase executed")

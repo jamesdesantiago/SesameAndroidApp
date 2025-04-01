@@ -1,14 +1,14 @@
 package com.gazzel.sesameapp.presentation.screens.auth
 
-import android.content.Intent
-import android.content.IntentSender
-import androidx.activity.result.contract.ActivityResultContracts
-import com.google.android.gms.auth.api.identity.BeginSignInRequest
+import android.content.Context
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
-import com.google.android.gms.common.api.ApiException
-import kotlinx.coroutines.suspendCancellableCoroutine
-import javax.inject.Inject
-import kotlin.coroutines.resume
+import javax.inject.Singleton
 
 import kotlin.coroutines.resumeWithException
 
@@ -20,7 +20,7 @@ class GoogleSignInHelper @Inject constructor(
             BeginSignInRequest.GoogleIdTokenRequestOptions.builder()
                 .setSupported(true)
                 .setFilterByAuthorizedAccounts(false)
-                .setServerClientId("YOUR_SERVER_CLIENT_ID") // Replace with your server client ID
+                .setServerClientId("476131428056-je1pi2q8narnv7scq5dhbch1rbbdqbn2.apps.googleusercontent.com") // Replace with your server client ID
                 .build()
         )
         .setAutoSelectEnabled(true)
@@ -49,4 +49,14 @@ class GoogleSignInHelper @Inject constructor(
             }
         }
     }
-} 
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AuthModule {
+    @Provides
+    @Singleton
+    fun provideSignInClient(@ApplicationContext context: Context): SignInClient {
+        return Identity.getSignInClient(context)
+    }
+}

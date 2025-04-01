@@ -3,7 +3,7 @@ package com.gazzel.sesameapp.di
 import android.content.Context
 import androidx.room.Room
 import com.gazzel.sesameapp.data.local.AppDatabase
-import com.gazzel.sesameapp.data.local.UserDao
+import com.gazzel.sesameapp.data.local.dao.UserDao
 import com.gazzel.sesameapp.data.local.dao.PlaceDao
 import dagger.Module
 import dagger.Provides

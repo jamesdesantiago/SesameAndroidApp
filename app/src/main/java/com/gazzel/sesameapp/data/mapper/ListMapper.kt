@@ -1,33 +1,32 @@
 package com.gazzel.sesameapp.data.mapper
 
 import com.gazzel.sesameapp.data.model.ListDto
-import com.gazzel.sesameapp.domain.model.List
+import com.gazzel.sesameapp.domain.model.SesameList
 import java.util.Date
 
-fun ListDto.toDomain(): List {
-    return List(
+fun ListDto.toDomain(): SesameList {
+    return SesameList(
         id = id,
         title = title,
-        description = description,
+        description = description.toString(),
         userId = userId,
-        createdAt = createdAt.toDate(),
-        updatedAt = updatedAt.toDate(),
+        createdAt = createdAt.toDate().time,
+        updatedAt = updatedAt.toDate().time,
         isPublic = isPublic,
-        placeCount = placeCount,
-        followerCount = followerCount
+        places = emptyList()
     )
 }
 
-fun List.toDto(): ListDto {
+fun SesameList.toDto(): ListDto {
     return ListDto(
         id = id,
         title = title,
         description = description,
         userId = userId,
-        createdAt = com.google.firebase.Timestamp(Date(createdAt.time)),
-        updatedAt = com.google.firebase.Timestamp(Date(updatedAt.time)),
+        createdAt = com.google.firebase.Timestamp(Date(createdAt)),
+        updatedAt = com.google.firebase.Timestamp(Date(updatedAt)),
         isPublic = isPublic,
-        placeCount = placeCount,
-        followerCount = followerCount
+        placeCount = 0,
+        followerCount = 0
     )
 } 

@@ -22,6 +22,11 @@ sealed class AppException : Exception() {
         override val cause: Throwable? = null
     ) : AppException()
 
+    data class ResourceNotFoundException(
+        override val message: String,
+        override val cause: Throwable? = null
+    ) : AppException()
+
     data class ValidationException(
         override val message: String,
         override val cause: Throwable? = null

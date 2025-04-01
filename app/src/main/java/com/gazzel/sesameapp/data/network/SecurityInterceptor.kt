@@ -27,7 +27,7 @@ import javax.inject.Inject
  * Security headers verified:
  * - Strict-Transport-Security: Enforces HTTPS
  * - X-Content-Type-Options: Prevents MIME type sniffing
- * - X-Frame-Options: Prevents clickjacking
+ * - X-Frame-Options: Prevents click jacking
  * - X-XSS-Protection: Enables browser XSS protection
  *
  * @property logger Logger instance for error tracking

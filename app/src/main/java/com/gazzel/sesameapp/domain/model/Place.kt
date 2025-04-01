@@ -1,7 +1,6 @@
 package com.gazzel.sesameapp.domain.model
 
-import com.google.android.gms.maps.model.LatLng
-import com.google.gson.annotations.SerializedName
+import com.google.android.gms.maps.model.LatLng // Use Google Maps LatLng
 import java.util.Date
 
 data class Place(
@@ -10,7 +9,7 @@ data class Place(
     val description: String?,
     val address: String,
     val location: LatLng,
-    val rating: Float?,
+    val rating: Float?, // Changed to Float? to match domain model
     val photoUrl: String?,
     val websiteUrl: String?,
     val phoneNumber: String?,
@@ -34,11 +33,14 @@ data class PlaceCreate(
     val address: String,
     val latitude: Double,
     val longitude: Double,
-    val rating: String? = null,
-    val notes: String? = null,
-    val visitStatus: String? = null
+    val rating: Double? = null, // Aligned with UserListService.kt
+    val notes: String? = null,  // Optional extension
+    val visitStatus: String? = null // Optional extension
 )
 
 data class PlaceUpdate(
-    val notes: String? = null
-) 
+    val name: String? = null,   // Aligned with UserListService.kt
+    val address: String? = null,
+    val rating: Double? = null,
+    val notes: String? = null   // Optional extension
+)

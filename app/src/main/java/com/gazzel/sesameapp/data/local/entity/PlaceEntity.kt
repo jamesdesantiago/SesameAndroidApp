@@ -26,7 +26,8 @@ data class PlaceEntity(
             longitude = longitude,
             notes = description,
             rating = null,
-            visitStatus = null
+            visitStatus = null,
+            listId = listId,
         )
     }
 
