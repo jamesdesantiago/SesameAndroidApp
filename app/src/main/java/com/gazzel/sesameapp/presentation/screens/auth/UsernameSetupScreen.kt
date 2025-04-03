@@ -6,26 +6,30 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.navigation.compose.hiltViewModel // Keep hiltViewModel import
 import androidx.navigation.NavController
 import com.gazzel.sesameapp.presentation.navigation.Screen
 
 @Composable
 fun UsernameSetupScreen(
     navController: NavController,
-    viewModel: MainViewModel = hiltViewModel()
+    // Use the new ViewModel
+    viewModel: UsernameSetupViewModel = hiltViewModel() // <-- Change ViewModel type
 ) {
     var username by remember { mutableStateOf("") }
-    val uiState by viewModel.uiState.collectAsState()
+    // Collect the correct state type
+    val uiState by viewModel.uiState.collectAsState() // <-- uiState is now UsernameSetupState
 
+    // Handle navigation on Success state
     LaunchedEffect(uiState) {
         when (uiState) {
-            is MainUiState.Ready -> {
-                navController.navigate(Screen.Home.route) {
+            // Check for the new Success state
+            is UsernameSetupState.Success -> { // <-- Change State check
+                navController.navigate(Screen.Home.route) { // Navigate to Home on success
                     popUpTo(Screen.UsernameSetup.route) { inclusive = true }
                 }
             }
-            else -> {}
+            else -> { /* Handle other states if needed, e.g., show snackbar on error */ }
         }
     }
 
@@ -45,33 +49,57 @@ fun UsernameSetupScreen(
 
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it },
+            onValueChange = { newUsername ->
+                // Optional: Basic input filtering if desired
+                // username = newUsername.filter { it.isLetterOrDigit() }
+                username = newUsername
+            },
             label = { Text("Username") },
             modifier = Modifier.fillMaxWidth(),
-            enabled = uiState !is MainUiState.Loading
+            // Check against the new Loading state
+            enabled = uiState !is UsernameSetupState.Loading, // <-- Change State check
+            isError = uiState is UsernameSetupState.Error // Optionally highlight field on error
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        when (uiState) {
-            is MainUiState.Loading -> {
+        // Handle the new states
+        when (val currentState = uiState) { // Assign to currentState for easier access
+            is UsernameSetupState.Loading -> { // <-- Change State check
                 CircularProgressIndicator()
             }
-            is MainUiState.Error -> {
+            is UsernameSetupState.Error -> { // <-- Change State check
                 Text(
-                    text = (uiState as MainUiState.Error).message,
-                    color = MaterialTheme.colorScheme.error
+                    // Access message from the correct state object
+                    text = currentState.message, // <-- Access message field
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp) // Add some padding
                 )
-            }
-            else -> {
+                // Add the button back even on error state so user can retry
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    onClick = { viewModel.updateUsername(username) },
+                    onClick = { viewModel.updateUsername(username) }, // <-- Call correct VM function
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = username.isNotBlank()
+                    enabled = username.isNotBlank() && username.length >= 3 // Basic validation
+                ) {
+                    Text("Retry") // Change text maybe?
+                }
+
+            }
+            // Handle Idle and Success (button shown below for Idle)
+            is UsernameSetupState.Idle -> {
+                Button(
+                    onClick = { viewModel.updateUsername(username) }, // <-- Call correct VM function
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = username.isNotBlank() && username.length >= 3 // Basic validation
                 ) {
                     Text("Continue")
                 }
             }
+            is UsernameSetupState.Success -> {
+                // Optionally show a temporary success indicator or just rely on navigation
+                Text("Username set successfully!") // Or just let navigation handle it
+            }
         }
     }
-} 
+}

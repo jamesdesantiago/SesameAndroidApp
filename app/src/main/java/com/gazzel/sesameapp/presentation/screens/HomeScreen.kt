@@ -1,13 +1,16 @@
 package com.gazzel.sesameapp.presentation.screens
 
+// --- Android & System Imports ---
 import android.Manifest
+import android.annotation.SuppressLint // <-- IMPORT SuppressLint
+import android.content.Context // <-- IMPORT Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.List
@@ -19,150 +22,190 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.ListService
-import com.gazzel.sesameapp.domain.model.ListResponse
-import com.gazzel.sesameapp.domain.model.PlaceItem
-import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
-import com.gazzel.sesameapp.data.manager.DataUpdateEvent
+import androidx.core.content.ContextCompat
+
+// --- Maps Imports ---
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.CameraUpdateFactory // <-- IMPORT
 import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.* // Should import GoogleMap, Marker, MarkerState, MapProperties, MapUiSettings, rememberCameraPositionState, CameraPositionState
+
+// --- Firebase ---
 import com.google.firebase.auth.FirebaseAuth
-import com.google.maps.android.compose.*
+
+// --- Coroutines ---
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+
+// --- Networking ---
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import androidx.core.content.ContextCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+
+// --- Your Project Specific Imports ---
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.gazzel.sesameapp.data.service.ListService
+import com.gazzel.sesameapp.domain.model.ListResponse // Ensure this definition is correct
+// Import PlaceDto if it's returned by the service
+import com.gazzel.sesameapp.data.model.PlaceDto // <-- IMPORT PlaceDto
+import com.gazzel.sesameapp.domain.model.PlaceItem
+import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
+import com.gazzel.sesameapp.data.manager.DataUpdateEvent
+import com.gazzel.sesameapp.presentation.activities.UserListsActivity
+import com.gazzel.sesameapp.presentation.activities.FriendsActivity
+import com.gazzel.sesameapp.presentation.activities.CreateListActivity
+
+// --- Math ---
 import kotlin.math.*
 
+
+@OptIn(ExperimentalMaterial3Api::class) // Added OptIn for Material 3 APIs like TopAppBar
 @Composable
 fun HomeScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val auth = FirebaseAuth.getInstance()
 
-    // State for places to display on the map
+    // State for places
     var places by remember { mutableStateOf<List<PlaceItem>>(emptyList()) }
     var filteredPlaces by remember { mutableStateOf<List<PlaceItem>>(emptyList()) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
-    // Camera position state for the map
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(0.0, 0.0), 2f) // Default position
-    }
+    // Camera position state - Initialize simply
+    val cameraPositionState: CameraPositionState = rememberCameraPositionState() // <-- Initialize here
 
-    // Fused Location Provider Client
-    val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+    // Fused Location Client
+    val fusedLocationClient: FusedLocationProviderClient = remember { // Use remember for stability
+        LocationServices.getFusedLocationProviderClient(context)
+    }
 
     // Permission launcher
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
+            // Request location after permission granted
             scope.launch {
                 try {
+                    // TODO: Add a check for Location Availability/Settings if location is null
+                    @SuppressLint("MissingPermission") // Already checked/requested
                     val location = fusedLocationClient.lastLocation.await()
                     if (location != null) {
                         currentLocation = LatLng(location.latitude, location.longitude)
-                        // Center the map on the current location with a zoom level for 1km radius
-                        cameraPositionState.position = CameraPosition.fromLatLngZoom(
-                            LatLng(location.latitude, location.longitude),
-                            14f // Zoom level to approximate 1km radius
+                        cameraPositionState.animate( // Animate camera to new location
+                            update = CameraUpdateFactory.newLatLngZoom(currentLocation!!, 14f),
+                            durationMs = 1000
                         )
-                        // Filter places within 1km
-                        filteredPlaces = places.filter { place ->
+                        // Filter places now that location is known
+                        filteredPlaces = places.filter { place: PlaceItem -> // Explicit type
                             val distance = calculateDistance(
                                 location.latitude, location.longitude,
                                 place.latitude, place.longitude
                             )
                             distance <= 1.0 // 1km radius
                         }
-                        Log.d("HomeScreen", "Filtered ${filteredPlaces.size} places within 1km")
+                        Log.d("HomeScreen", "Location obtained and filtered ${filteredPlaces.size} places.")
                     } else {
-                        errorMessage = "Unable to get current location"
+                        errorMessage = "Unable to get current location. Is location enabled?"
+                        Log.w("HomeScreen", "fusedLocationClient.lastLocation returned null.")
                     }
+                } catch (e: SecurityException) { // Catch SecurityException specifically
+                    Log.e("HomeScreen", "Location permission error after grant?", e)
+                    errorMessage = "Permission error retrieving location."
                 } catch (e: Exception) {
                     Log.e("HomeScreen", "Failed to get location: ${e.message}", e)
-                    errorMessage = "Failed to get location: ${e.message}"
+                    errorMessage = "Error getting location: ${e.localizedMessage}"
                 }
             }
         } else {
             errorMessage = "Location permission denied"
+            // Optionally show a rationale or guide user to settings
         }
     }
 
-    // Check and request location permission
-    LaunchedEffect(Unit) {
+    // --- Location Logic ---
+    fun checkAndFetchLocation() {
         if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                context, Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            try {
-                val location = fusedLocationClient.lastLocation.await()
-                if (location != null) {
-                    currentLocation = LatLng(location.latitude, location.longitude)
-                    cameraPositionState.position = CameraPosition.fromLatLngZoom(
-                        LatLng(location.latitude, location.longitude),
-                        14f // Zoom level to approximate 1km radius
-                    )
-                    // Filter places within 1km
-                    filteredPlaces = places.filter { place ->
-                        val distance = calculateDistance(
-                            location.latitude, location.longitude,
-                            place.latitude, place.longitude
-                        )
-                        distance <= 1.0 // 1km radius
+            scope.launch { // Launch coroutine to get location
+                try {
+                    @SuppressLint("MissingPermission")
+                    val location = fusedLocationClient.lastLocation.await()
+                    if (location != null) {
+                        val newLocation = LatLng(location.latitude, location.longitude)
+                        // Only update state and filter if location actually changed significantly
+                        if (currentLocation == null || calculateDistance(currentLocation!!.latitude, currentLocation!!.longitude, newLocation.latitude, newLocation.longitude) > 0.05) { // 50m threshold
+                            currentLocation = newLocation
+                            cameraPositionState.animate(
+                                update = CameraUpdateFactory.newLatLngZoom(newLocation, 14f),
+                                durationMs = 1000
+                            )
+                            filteredPlaces = places.filter { place: PlaceItem -> // Explicit type
+                                val distance = calculateDistance(
+                                    location.latitude, location.longitude,
+                                    place.latitude, place.longitude
+                                )
+                                distance <= 1.0 // 1km radius
+                            }
+                            Log.d("HomeScreen", "Initial location obtained and filtered ${filteredPlaces.size} places.")
+                        }
+                    } else {
+                        errorMessage = "Unable to get current location. Is location enabled?"
+                        Log.w("HomeScreen", "Initial fusedLocationClient.lastLocation returned null.")
+                        // Maybe request updates if last location is null? (More complex)
                     }
-                    Log.d("HomeScreen", "Filtered ${filteredPlaces.size} places within 1km")
-                } else {
-                    errorMessage = "Unable to get current location"
+                } catch (e: SecurityException) {
+                    Log.e("HomeScreen", "Initial check: Location permission error?", e)
+                    errorMessage = "Permission error retrieving location."
+                    requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) // Re-request just in case
+                } catch (e: Exception) {
+                    Log.e("HomeScreen", "Failed to get initial location", e)
+                    errorMessage = "Error getting location: ${e.localizedMessage}"
                 }
-            } catch (e: Exception) {
-                Log.e("HomeScreen", "Failed to get location: ${e.message}", e)
-                errorMessage = "Failed to get location: ${e.message}"
             }
         } else {
+            // Request permission if not granted
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
-    // Retrofit setup for ListService
-    val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .build()
-
-    val listService = Retrofit.Builder()
-        .baseUrl("https://gazzel.io/")
-        .client(okHttpClient)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-        .create(ListService::class.java)
-
-    // Token management
+    // --- Retrofit & Token Management (Consider moving to ViewModel) ---
+    val okHttpClient = remember { // remember instances tied to composition
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+    val listService = remember { // remember instances tied to composition
+        Retrofit.Builder()
+            .baseUrl("https://gazzel.io/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ListService::class.java)
+    }
     var cachedToken: String? by remember { mutableStateOf(null) }
-    var tokenExpiry: Long by remember { mutableStateOf(0) }
+    var tokenExpiry: Long by remember { mutableStateOf(0L) } // Use mutableStateOf for recomposition
 
-    suspend fun getValidToken(): String? {
+    suspend fun getValidToken(): String? { // Make this function stable if moved outside composable
         if (cachedToken != null && System.currentTimeMillis() / 1000 < tokenExpiry - 300) {
             return cachedToken
         } else {
+            // Simplified refresh logic (better in ViewModel/Repository)
             return try {
-                val result = auth.currentUser?.getIdToken(true)?.await()
-                cachedToken = result?.token
-                tokenExpiry = result?.expirationTimestamp ?: 0
-                Log.d("HomeScreen", "Refreshed token: $cachedToken, expires: $tokenExpiry")
+                val user = auth.currentUser ?: return null
+                val result = user.getIdToken(true).await()
+                cachedToken = result.token
+                tokenExpiry = result.expirationTimestamp ?: 0L
+                Log.d("HomeScreen", "Refreshed token expires: $tokenExpiry")
                 cachedToken
             } catch (e: Exception) {
                 Log.e("HomeScreen", "Token refresh failed: ${e.message}", e)
@@ -171,83 +214,76 @@ fun HomeScreen() {
         }
     }
 
-    // Function to fetch lists and places
+    // --- Data Fetching ---
     suspend fun fetchPlaces(): List<PlaceItem> {
-        try {
-            val token = getValidToken() ?: throw Exception("No valid token")
+        return try {
+            val token = getValidToken() ?: throw IllegalStateException("Authentication token is missing.")
             val authorizationHeader = "Bearer $token"
-
-            // Fetch user's lists
             val listsResponse = listService.getLists(authorizationHeader)
+
             if (!listsResponse.isSuccessful) {
-                errorMessage = "Failed to load lists: ${listsResponse.message()}"
+                // ... error handling ...
                 return emptyList()
             }
 
             val lists: List<ListResponse> = listsResponse.body() ?: emptyList()
-            val allPlaces = mutableListOf<PlaceItem>()
+            val allPlaceItems = mutableListOf<PlaceItem>() // Changed variable name
 
-            // Fetch places for each list
             for (list in lists) {
-                val listDetailsResponse = listService.getListDetail(list.id, authorizationHeader)
-                if (listDetailsResponse.isSuccessful) {
-                    val listDetails = listDetailsResponse.body()
-                    listDetails?.places?.let { placesList: List<PlaceItem> ->
-                        allPlaces.addAll(placesList)
-                    }
-                } else {
-                    Log.e("HomeScreen", "Failed to load details for list ${list.id}: ${listDetailsResponse.message()}")
-                }
+                try {
+                    val listDetailsResponse = listService.getListDetail(list.id, authorizationHeader)
+                    if (listDetailsResponse.isSuccessful) {
+                        // ** APPLY MAPPING HERE **
+                        listDetailsResponse.body()?.places?.let { placesDtoList -> // Assume places is List<PlaceDto>?
+                            val itemsInList = placesDtoList.map { dto ->
+                                dto.toPlaceItem(list.id) // Map DTO -> Item
+                            }
+                            allPlaceItems.addAll(itemsInList) // Add the mapped PlaceItems
+                        }
+                    } else { /* log error */ }
+                } catch (listDetailError: Exception) { /* log error */ }
             }
-
-            Log.d("HomeScreen", "Loaded ${allPlaces.size} places")
-            return allPlaces
+            Log.d("HomeScreen", "Loaded and mapped ${allPlaceItems.size} places total")
+            errorMessage = null
+            return allPlaceItems // Return the list of PlaceItems
         } catch (e: Exception) {
-            Log.e("HomeScreen", "Failed to load places: ${e.message}", e)
-            errorMessage = "Failed to load places: ${e.message}"
+            Log.e("HomeScreen", "Failed to load places overall", e)
+            errorMessage = "Failed to load places: ${e.localizedMessage ?: "Unknown error"}"
             return emptyList()
         }
     }
 
-    // Fetch lists and places on composition and when a data update event occurs
-    LaunchedEffect(Unit) {
-        // Initial fetch
+    // --- Effects ---
+    LaunchedEffect(Unit) { // Runs once on composition
+        checkAndFetchLocation() // Check permission and get initial location
+
+        // Initial data fetch
         places = fetchPlaces()
-        currentLocation?.let { location ->
-            filteredPlaces = places.filter { place ->
-                val distance = calculateDistance(
-                    location.latitude, location.longitude,
-                    place.latitude, place.longitude
-                )
-                distance <= 1.0 // 1km radius
+        // Re-filter after fetching places if location is already available
+        currentLocation?.let { loc ->
+            filteredPlaces = places.filter { place: PlaceItem -> // Explicit type PlaceItem
+                val distance = calculateDistance(loc.latitude, loc.longitude, place.latitude, place.longitude)
+                distance <= 1.0
             }
-            Log.d("HomeScreen", "Filtered ${filteredPlaces.size} places within 1km")
+            Log.d("HomeScreen", "Filtered places after initial fetch: ${filteredPlaces.size}")
         }
 
-        // Listen for data update events (place added or list deleted)
+        // Listen for data update events
         PlaceUpdateManager.dataUpdateFlow.collectLatest { event ->
-            when (event) {
-                is DataUpdateEvent.PlaceAdded -> {
-                    Log.d("HomeScreen", "Place added event received, refreshing data")
-                }
-                is DataUpdateEvent.ListDeleted -> {
-                    Log.d("HomeScreen", "List deleted event received, refreshing data")
-                }
-            }
+            Log.d("HomeScreen", "Data update event received ($event), refreshing data...")
             places = fetchPlaces()
-            currentLocation?.let { location ->
-                filteredPlaces = places.filter { place ->
-                    val distance = calculateDistance(
-                        location.latitude, location.longitude,
-                        place.latitude, place.longitude
-                    )
-                    distance <= 1.0 // 1km radius
+            // Re-filter after update if location is available
+            currentLocation?.let { loc ->
+                filteredPlaces = places.filter { place: PlaceItem -> // Explicit type
+                    val distance = calculateDistance(loc.latitude, loc.longitude, place.latitude, place.longitude)
+                    distance <= 1.0
                 }
-                Log.d("HomeScreen", "Filtered ${filteredPlaces.size} places within 1km after update")
+                Log.d("HomeScreen", "Filtered places after update: ${filteredPlaces.size}")
             }
         }
     }
 
+    // --- UI ---
     SesameAppTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -255,40 +291,36 @@ fun HomeScreen() {
         ) {
             Scaffold(
                 topBar = {
-                    TopAppBar(
+                    TopAppBar( // Use M3 TopAppBar
                         title = { Text("Home") },
                         actions = {
                             IconButton(onClick = {
-                                context.startActivity(Intent(context, UserListsActivity::class.java))
+                                context.startActivity(Intent(context, UserListsActivity::class.java)) // Should resolve
                             }) {
-                                Icon(
-                                    imageVector = Icons.Default.List,
-                                    contentDescription = "View Lists"
-                                )
+                                Icon(Icons.Default.List, "View Lists")
                             }
                             IconButton(onClick = {
-                                context.startActivity(Intent(context, FriendsActivity::class.java))
+                                context.startActivity(Intent(context, FriendsActivity::class.java)) // Should resolve
                             }) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Friends"
-                                )
+                                Icon(Icons.Default.Person, "Friends")
                             }
                         }
+                        // Add colors if needed:
+                        // colors = TopAppBarDefaults.topAppBarColors(
+                        //     containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        //     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        // )
                     )
                 },
                 floatingActionButton = {
                     FloatingActionButton(
                         onClick = {
-                            context.startActivity(Intent(context, CreateListActivity::class.java))
+                            context.startActivity(Intent(context, CreateListActivity::class.java)) // Should resolve
                         },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Create List"
-                        )
+                        Icon(Icons.Default.Add, "Create List")
                     }
                 }
             ) { padding ->
@@ -297,38 +329,48 @@ fun HomeScreen() {
                         .fillMaxSize()
                         .padding(padding)
                 ) {
-                    GoogleMap(
+                    GoogleMap( // Should resolve
                         modifier = Modifier.fillMaxSize(),
                         cameraPositionState = cameraPositionState,
-                        properties = MapProperties(isMyLocationEnabled = true)
+                        properties = MapProperties(isMyLocationEnabled = true), // Should resolve
+                        // Optional: Add onMapLoaded callback
+                        // onMapLoaded = { Log.d("HomeScreen", "Map Loaded") }
+                        uiSettings = MapUiSettings(myLocationButtonEnabled = true) // Optionally enable button
                     ) {
+                        // Markers should render if filteredPlaces is not empty
                         filteredPlaces.forEach { place ->
-                            Marker(
-                                state = MarkerState(
+                            Marker( // Should resolve
+                                state = MarkerState( // Should resolve
                                     position = LatLng(place.latitude, place.longitude)
                                 ),
                                 title = place.name,
                                 snippet = place.address
+                                // Optional: Add onClick for marker
+                                // onClick = { marker -> Log.d("HomeScreen", "Clicked ${marker.title}"); true }
                             )
                         }
                     }
 
+                    // Display Error Message (e.g., Snackbar or Text)
                     if (errorMessage != null) {
+                        // Example using SnackbarHost at bottom
+                        // Or just a Text overlay
                         Text(
-                            text = errorMessage ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
+                            text = errorMessage!!, // Use non-null assertion if needed after check
+                            color = Color.Red, // Or MaterialTheme.colorScheme.error
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(16.dp)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .padding(8.dp)
                         )
                     }
-                }
-            }
-        }
-    }
+                } // End Box
+            } // End Scaffold padding lambda
+        } // End Surface
+    } // End SesameAppTheme
 }
 
+// calculateDistance function remains the same
 private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val r = 6371 // Earth's radius in kilometers
     val dLat = Math.toRadians(lat2 - lat1)
@@ -338,4 +380,21 @@ private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Do
             sin(dLon / 2) * sin(dLon / 2)
     val c = 2 * atan2(sqrt(a), sqrt(1 - a))
     return r * c
-} 
+}
+
+private fun PlaceDto.toPlaceItem(listId: String): PlaceItem { // Use listId if needed, or remove if not
+    return PlaceItem(
+        id = this.id,
+        name = this.name,
+        description = this.description ?: "",
+        address = this.address,
+        latitude = this.latitude,
+        longitude = this.longitude,
+        // If PlaceItem doesn't need listId for HomeScreen, you can simplify,
+        // but it needs it if PlaceItem definition requires it.
+        listId = listId, // Or determine differently if needed
+        notes = null, // Or map if DTO has notes
+        rating = this.rating, // String? from DTO
+        visitStatus = null // Or map if DTO has status
+    )
+}

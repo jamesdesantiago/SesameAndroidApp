@@ -28,5 +28,8 @@ interface PlaceDao {
     suspend fun deletePlace(placeId: String)
 
     @Query("SELECT * FROM places WHERE id = :placeId LIMIT 1")
+    fun getPlaceByIdFlow(placeId: String): Flow<PlaceEntity?>
+
+    @Query("SELECT * FROM places WHERE id = :placeId LIMIT 1")
     suspend fun getPlaceById(placeId: String): PlaceEntity?
 }

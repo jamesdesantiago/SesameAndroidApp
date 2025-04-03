@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface PlaceRepository {
     fun searchPlaces(query: String, location: LatLng, radius: Int): Flow<List<Place>>
-    fun getPlaceById(placeId: String): Flow<Place?>
+    fun getPlaceById(placeId: String): Flow<PlaceItem?>
     suspend fun getPlaceDetails(placeId: String): Result<Place>
     suspend fun savePlace(place: Place): Result<String>
     suspend fun updatePlace(place: Place): Result<Unit>

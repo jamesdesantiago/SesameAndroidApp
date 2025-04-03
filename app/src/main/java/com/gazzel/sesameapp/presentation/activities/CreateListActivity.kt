@@ -22,7 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.ListCreate
+import com.gazzel.sesameapp.domain.model.ListCreate
 import com.gazzel.sesameapp.data.service.UserListService
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -249,15 +249,20 @@ class CreateListActivity : ComponentActivity() {
                                         val request = ListCreate(
                                             name = listName,
                                             isPrivate = isPrivate,
-                                            collaborators = collaborators
+                                            collaborators = collaborators.toList()
                                         )
                                         val response = listService.createList(
                                             list = request,
                                             token = "Bearer $token"
                                         )
                                         if (response.isSuccessful) {
-                                            val listResponse = response.body()!!
-                                            onCreateSuccess(listResponse.id, listResponse.name)
+                                            response.body()?.let { listResponse -> // Use safe call and let
+                                                onCreateSuccess(listResponse.id, listResponse.name)
+                                            } ?: run {
+                                                // Handle case where body is unexpectedly null even on success
+                                                errorMessage = "List created successfully, but no response data received."
+                                                Log.e("CreateListActivity", "Successful response but empty body")
+                                            }
                                         } else {
                                             errorMessage = "Failed to create list: ${response.message()}"
                                             Log.e("CreateListActivity", "Error: ${response.errorBody()?.string()}")

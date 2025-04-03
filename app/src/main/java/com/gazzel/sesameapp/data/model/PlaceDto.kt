@@ -1,48 +1,65 @@
 package com.gazzel.sesameapp.data.model
 
+// Import SerializedName for Gson
+import com.google.gson.annotations.SerializedName
+// Keep Timestamp for now, but verify JSON format (see notes below)
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.PropertyName
 
 data class PlaceDto(
-    @PropertyName("id")
+    // Use @SerializedName if JSON key differs from Kotlin property name
+    // If JSON key is exactly "id", you might not need the annotation, but it's safer to include it.
+    @SerializedName("id")
     val id: String = "",
-    @PropertyName("name")
+    @SerializedName("name")
     val name: String = "",
-    @PropertyName("description")
+    @SerializedName("description")
     val description: String? = null,
-    @PropertyName("address")
+    @SerializedName("address")
     val address: String = "",
-    @PropertyName("latitude")
+    @SerializedName("latitude")
     val latitude: Double = 0.0,
-    @PropertyName("longitude")
+    @SerializedName("longitude")
     val longitude: Double = 0.0,
-    @PropertyName("rating")
-    val rating: Float? = null,
-    @PropertyName("photoUrl")
+    @SerializedName("rating")
+    val rating: String? = null, // Keep as String?
+    @SerializedName("photoUrl")
     val photoUrl: String? = null,
-    @PropertyName("websiteUrl")
+    @SerializedName("websiteUrl")
     val websiteUrl: String? = null,
-    @PropertyName("phoneNumber")
+    @SerializedName("phoneNumber")
     val phoneNumber: String? = null,
-    @PropertyName("openingHours")
+    @SerializedName("openingHours")
     val openingHours: List<OpeningHoursDto>? = null,
-    @PropertyName("types")
+    @SerializedName("types")
     val types: List<String> = emptyList(),
-    @PropertyName("priceLevel")
+    @SerializedName("priceLevel")
     val priceLevel: Int? = null,
-    @PropertyName("createdAt")
-    val createdAt: Timestamp = Timestamp.now(),
-    @PropertyName("updatedAt")
-    val updatedAt: Timestamp = Timestamp.now()
+
+    // *** Timestamp Handling - IMPORTANT ***
+    // Check your actual API JSON response. How are timestamps sent?
+    // Option 1: ISO 8601 String (e.g., "2023-10-27T10:00:00Z") -> Use String type here
+    // Option 2: Unix Milliseconds (e.g., 1698397200000) -> Use Long type here
+    // Option 3: Firebase Timestamp object -> Requires custom Gson TypeAdapter (More complex)
+    // Assuming String for now as an example, ADJUST BASED ON YOUR API:
+    @SerializedName("createdAt")
+    val createdAt: String? = null, // Example: Changed to String? - ADJUST THIS
+    @SerializedName("updatedAt")
+    val updatedAt: String? = null // Example: Changed to String? - ADJUST THIS
+
+    // If your API REALLY sends Firestore Timestamps in JSON (unlikely for standard REST),
+    // you'd keep `val createdAt: Timestamp`, but need to register a TypeAdapter with Gson.
+    // val createdAt: Timestamp = Timestamp.now(),
+    // val updatedAt: Timestamp = Timestamp.now()
 )
 
 data class OpeningHoursDto(
-    @PropertyName("dayOfWeek")
+    // Add @SerializedName here too if needed
+    @SerializedName("dayOfWeek")
     val dayOfWeek: Int = 0,
-    @PropertyName("openTime")
+    @SerializedName("openTime")
     val openTime: String = "",
-    @PropertyName("closeTime")
+    @SerializedName("closeTime")
     val closeTime: String = "",
-    @PropertyName("isOpen")
+    @SerializedName("isOpen")
     val isOpen: Boolean = true
-) 
+)

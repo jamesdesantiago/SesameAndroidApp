@@ -6,10 +6,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.PlacesApiService
+import com.gazzel.sesameapp.data.service.GooglePlacesService
 import com.gazzel.sesameapp.data.service.UserListService // Use UserListService instead of ListService
 import com.gazzel.sesameapp.data.service.PlaceCreate // Updated to match your domain model
+import com.gazzel.sesameapp.presentation.screens.SearchPlacesScreen
+import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
+import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
+import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
+import com.gazzel.sesameapp.R
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
@@ -19,7 +24,7 @@ import java.util.concurrent.TimeUnit
 
 class PlacesSearchActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
-    private lateinit var placesApiService: PlacesApiService
+    private lateinit var googlePlacesService: GooglePlacesService
     private lateinit var listService: UserListService // Changed to UserListService
     private var cachedToken: String? = null
     private var tokenExpiry: Long = 0
@@ -30,17 +35,17 @@ class PlacesSearchActivity : ComponentActivity() {
         auth = FirebaseAuth.getInstance()
 
         val okHttpClient = OkHttpClient.Builder()
-            .connectTimeout(500, TimeUnit.MILLISECONDS)
-            .readTimeout(750, TimeUnit.MILLISECONDS)
-            .writeTimeout(500, TimeUnit.MILLISECONDS)
+            .connectTimeout(10000, TimeUnit.MILLISECONDS)
+            .readTimeout(10000, TimeUnit.MILLISECONDS)
+            .writeTimeout(10000, TimeUnit.MILLISECONDS)
             .build()
 
-        placesApiService = Retrofit.Builder()
+        googlePlacesService = Retrofit.Builder()
             .baseUrl("https://places.googleapis.com/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(PlacesApiService::class.java)
+            .create(GooglePlacesService::class.java)
 
         listService = Retrofit.Builder()
             .baseUrl("https://gazzel.io/")
@@ -55,7 +60,7 @@ class PlacesSearchActivity : ComponentActivity() {
             SesameAppTheme {
                 SearchPlacesScreen(
                     onSkip = { finish() },
-                    onPlaceSelected = { place, userRating, visitStatus ->
+                    onPlaceSelected = { PlaceDetailsResponse: PlaceDetailsResponse, userRating, visitStatus ->
                         lifecycleScope.launch {
                             val token = getValidToken()
                             if (token != null) {
@@ -63,11 +68,11 @@ class PlacesSearchActivity : ComponentActivity() {
                                     val response = listService.addPlace(
                                         listId = listId,
                                         place = PlaceCreate(
-                                            placeId = place.id,
-                                            name = place.displayName.text,
-                                            address = place.formattedAddress,
-                                            latitude = place.location.latitude,
-                                            longitude = place.location.longitude,
+                                            placeId = placeDetailsResponse.id,
+                                            name = placeDetailsResponse.displayName.text,
+                                            address = placeDetailsResponse.formattedAddress,
+                                            latitude = placeDetailsResponse.location.latitude,
+                                            longitude = placeDetailsResponse.location.longitude,
                                             rating = userRating
                                         ),
                                         authorization = "Bearer $token"
@@ -102,7 +107,7 @@ class PlacesSearchActivity : ComponentActivity() {
                             }
                         }
                     },
-                    placesApiService = placesApiService,
+                    googlePlacesService = googlePlacesService,
                     apiKey = getString(R.string.google_maps_key)
                 )
             }

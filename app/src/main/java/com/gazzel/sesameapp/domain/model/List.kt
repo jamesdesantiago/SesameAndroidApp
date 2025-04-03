@@ -22,18 +22,6 @@ data class ListCreate(
     val collaborators: List<String> = emptyList()
 )
 
-data class ListResponse(
-    val id: String,
-    val name: String,
-    val description: String?,
-    val isPrivate: Boolean,
-    val collaborators: List<String>? = null,
-    val places: List<Place>? = null // Use Place instead of PlaceItem for consistency
-) {
-    init {
-        Log.d("ListResponse", "Deserialized: id=$id, name=$name, isPrivate=$isPrivate, collaborators=$collaborators")
-    }
-}
 data class ListUpdate(
     val name: String? = null,
     val isPrivate: Boolean? = null
