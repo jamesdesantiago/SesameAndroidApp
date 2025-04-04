@@ -17,11 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -151,7 +152,7 @@ fun ListsScreen(
                                             selectedList = list
                                             showDeleteDialog = true
                                         }) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete") // Use outlined icon
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete") // Use outlined icon
                                         }
                                     }
                                 },
@@ -288,7 +289,7 @@ private fun EmptyListsView(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.PlaylistAdd, // Changed Icon for better context
+            imageVector = Icons.Default.AddCircle, // Changed Icon for better context
             contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant

@@ -13,6 +13,7 @@ import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
 import com.gazzel.sesameapp.data.service.UserListService
 import com.gazzel.sesameapp.presentation.screens.SearchPlacesScreen
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.gazzel.sesameapp.BuildConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -107,7 +108,7 @@ class PlacesSearchActivity : ComponentActivity() {
                         }
                     },
                     googlePlacesService = googlePlacesService,
-                    apiKey = getString(R.string.google_maps_key)
+                    apiKey = getString(R.string.google_api_key)
                 )
             }
         }

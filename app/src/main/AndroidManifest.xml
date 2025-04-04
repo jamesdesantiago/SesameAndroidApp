@@ -11,12 +11,11 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SesameApp"
-        android:usesCleartextTraffic="true">
+        android:theme="@style/Theme.SesameApp">
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="@string/google_maps_key" />
+            android:value="${mapsApiKey}" />
 
         <activity
             android:name=".presentation.activities.MainActivity"

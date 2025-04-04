@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
@@ -68,7 +68,7 @@ fun SharePlaceOverlay(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ContentCopy,
+                            imageVector = Icons.Default.Check,
                             contentDescription = "Copy link",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -221,7 +221,7 @@ fun ShareListOverlay(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ContentCopy,
+                            imageVector = Icons.Default.Check,
                             contentDescription = "Copy link",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )

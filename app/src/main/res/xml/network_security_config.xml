@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false"> <!-- Set to false -->
         <trust-anchors>
+            <!-- Trust system certificates for HTTPS -->
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-</network-security-config> 
+    <!-- Add domain-specific configs below if needed for production HTTPS exceptions -->
+</network-security-config>

@@ -1,6 +1,7 @@
 package com.gazzel.sesameapp.di
 
 import android.content.Context
+import com.gazzel.sesameapp.BuildConfig
 import com.gazzel.sesameapp.R
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.net.PlacesClient
@@ -18,7 +19,11 @@ object ExternalServicesModule {
     @Provides
     @Singleton
     fun providePlacesClient(@ApplicationContext context: Context): PlacesClient {
-        Places.initialize(context, context.getString(R.string.google_maps_key))
+        // Initialize Places if not already done
+        if (!Places.isInitialized()) {
+            // Use the key from BuildConfig
+            Places.initialize(context, BuildConfig.MAPS_API_KEY)
+        }
         return Places.createClient(context)
     }
 }
