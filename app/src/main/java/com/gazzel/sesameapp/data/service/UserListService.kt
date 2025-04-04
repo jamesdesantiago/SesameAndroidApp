@@ -1,12 +1,18 @@
 package com.gazzel.sesameapp.data.service
 
-import com.gazzel.sesameapp.domain.model.ListCreate
-import com.gazzel.sesameapp.domain.model.ListResponse // Import from domain.model
-import com.gazzel.sesameapp.domain.model.ListUpdate
 import com.gazzel.sesameapp.domain.model.CollaboratorAdd
-import com.gazzel.sesameapp.domain.model.Place // Use domain Place
+import com.gazzel.sesameapp.domain.model.ListCreate
+import com.gazzel.sesameapp.domain.model.ListResponse
+import com.gazzel.sesameapp.domain.model.ListUpdate
 import retrofit2.Response
-import retrofit2.http.*
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
 
 interface UserListService {
     @POST("lists")
@@ -21,12 +27,9 @@ interface UserListService {
     ): Response<List<ListResponse>>
 
     @DELETE("lists/{id}")
-    suspend fun deleteList(
-        @Path("id") listId: String,
-        @Header("Authorization") token: String
-    ): Response<Unit>
+    suspend fun deleteList(@Path("id") listId: String, @Header("Authorization") token: String): Response<Unit>
 
-    @PUT("lists/{id}")
+    @PUT("lists/{listId}")
     suspend fun updateList(
         @Path("id") listId: String,
         @Body update: ListUpdate,
@@ -90,11 +93,12 @@ data class PlaceCreate(
     val address: String,
     val latitude: Double,
     val longitude: Double,
-    val rating: Double?
+    val rating: String? = null
 )
 
 data class PlaceUpdate(
     val name: String? = null,
     val address: String? = null,
-    val rating: Double? = null
+    val rating: String? = null,
+    val notes: String? = null
 ) 

@@ -5,16 +5,15 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.GooglePlacesService
-import com.gazzel.sesameapp.data.service.UserListService // Use UserListService instead of ListService
-import com.gazzel.sesameapp.data.service.PlaceCreate // Updated to match your domain model
-import com.gazzel.sesameapp.presentation.screens.SearchPlacesScreen
-import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
-import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
-import android.widget.Toast
-import com.google.firebase.auth.FirebaseAuth
 import com.gazzel.sesameapp.R
+import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
+import com.gazzel.sesameapp.data.service.GooglePlacesService
+import com.gazzel.sesameapp.data.service.PlaceCreate
+import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
+import com.gazzel.sesameapp.data.service.UserListService
+import com.gazzel.sesameapp.presentation.screens.SearchPlacesScreen
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
@@ -60,7 +59,7 @@ class PlacesSearchActivity : ComponentActivity() {
             SesameAppTheme {
                 SearchPlacesScreen(
                     onSkip = { finish() },
-                    onPlaceSelected = { PlaceDetailsResponse: PlaceDetailsResponse, userRating, visitStatus ->
+                    onPlaceSelected = { placeDetailsResponse: PlaceDetailsResponse, userRating, visitStatus ->
                         lifecycleScope.launch {
                             val token = getValidToken()
                             if (token != null) {

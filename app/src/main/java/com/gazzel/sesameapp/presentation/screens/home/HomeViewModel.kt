@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -30,9 +31,10 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadUserAndLists() {
+        _uiState.value = HomeUiState.Loading
         viewModelScope.launch {
             try {
-                val user = userRepository.getCurrentUser()
+                val user: User = userRepository.getCurrentUser().first()
                 val lists = listRepository.getRecentLists(limit = 5)
                 _recentLists.value = lists
                 _uiState.value = HomeUiState.Success(user, lists)

@@ -1,7 +1,6 @@
 package com.gazzel.sesameapp.domain.repository
 
 import com.gazzel.sesameapp.domain.model.Notification
-import kotlinx.coroutines.flow.Flow
 
 interface NotificationRepository {
     suspend fun getNotifications(): List<Notification>

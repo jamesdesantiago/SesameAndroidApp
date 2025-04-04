@@ -2,32 +2,46 @@ package com.gazzel.sesameapp.presentation.screens
 
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
-import com.gazzel.sesameapp.data.service.GooglePlacesService
-import com.gazzel.sesameapp.data.service.PlacePrediction // <-- For Autocomplete suggestions
 import com.gazzel.sesameapp.data.service.AutocompleteRequest
-import kotlinx.coroutines.Dispatchers
+import com.gazzel.sesameapp.data.service.GooglePlacesService
+import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
+import com.gazzel.sesameapp.data.service.PlacePrediction
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 
 // Step-tracking enum for multi-step overlay
@@ -146,7 +160,17 @@ fun SearchPlacesScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Search field (unchanged)
-                    OutlinedTextField(/* ... */)
+                    OutlinedTextField(
+                        value = query, // Use the 'query' state variable
+                        onValueChange = { query = it }, // Update 'query' when text changes
+                        label = { Text("Search for a place...") }, // Add a label
+                        modifier = Modifier.fillMaxWidth(), // Make it fill the width
+                        singleLine = true, // Often useful for search bars
+                        // Optional: Add keyboard options, icons, etc.
+                        // keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        // keyboardActions = KeyboardActions(onSearch = { /* Handle search action */ }),
+                        // leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") }
+                    )
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Loading indicator (Show for autocomplete OR detail loading)

@@ -2,7 +2,7 @@ package com.gazzel.sesameapp.presentation.screens.lists
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gazzel.sesameapp.domain.model.List
+import com.gazzel.sesameapp.domain.model.SesameList
 import com.gazzel.sesameapp.domain.repository.ListRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +23,7 @@ class CreateListViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _uiState.value = CreateListUiState.Loading
-                val newList = List(
+                val newList = SesameList(
                     title = title,
                     description = description,
                     isPublic = isPublic,

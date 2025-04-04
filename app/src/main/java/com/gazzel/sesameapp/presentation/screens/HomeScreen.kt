@@ -1,66 +1,74 @@
 package com.gazzel.sesameapp.presentation.screens
 
-// --- Android & System Imports ---
 import android.Manifest
-import android.annotation.SuppressLint // <-- IMPORT SuppressLint
-import android.content.Context // <-- IMPORT Context
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-
-// --- Maps Imports ---
+import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
+import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.service.ListService
+import com.gazzel.sesameapp.domain.model.ListResponse
+import com.gazzel.sesameapp.domain.model.PlaceItem
+import com.gazzel.sesameapp.presentation.activities.CreateListActivity
+import com.gazzel.sesameapp.presentation.activities.FriendsActivity
+import com.gazzel.sesameapp.presentation.activities.UserListsActivity
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.CameraUpdateFactory // <-- IMPORT
-import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.* // Should import GoogleMap, Marker, MarkerState, MapProperties, MapUiSettings, rememberCameraPositionState, CameraPositionState
-
-// --- Firebase ---
 import com.google.firebase.auth.FirebaseAuth
-
-// --- Coroutines ---
+import com.google.maps.android.compose.CameraPositionState
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-
-// --- Networking ---
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-
-// --- Your Project Specific Imports ---
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.data.service.ListService
-import com.gazzel.sesameapp.domain.model.ListResponse // Ensure this definition is correct
-// Import PlaceDto if it's returned by the service
-import com.gazzel.sesameapp.data.model.PlaceDto // <-- IMPORT PlaceDto
-import com.gazzel.sesameapp.domain.model.PlaceItem
-import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
-import com.gazzel.sesameapp.data.manager.DataUpdateEvent
-import com.gazzel.sesameapp.presentation.activities.UserListsActivity
-import com.gazzel.sesameapp.presentation.activities.FriendsActivity
-import com.gazzel.sesameapp.presentation.activities.CreateListActivity
-
-// --- Math ---
-import kotlin.math.*
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 
 @OptIn(ExperimentalMaterial3Api::class) // Added OptIn for Material 3 APIs like TopAppBar

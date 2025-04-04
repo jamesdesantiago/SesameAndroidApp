@@ -10,7 +10,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 /**
@@ -43,7 +42,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object SecurityModule {
-    
+
     /**
      * Provides a singleton instance of SecurityManager.
      * This manager handles encryption and secure storage operations.
@@ -79,38 +78,4 @@ object SecurityModule {
     ): DeviceIdManager {
         return DeviceIdManager(context, securityManager, logger)
     }
-
-    /**
-     * Provides a singleton instance of SecurityInterceptor.
-     * This interceptor adds security headers to network requests.
-     *
-     * @param logger The Logger instance
-     * @param deviceIdManager The DeviceIdManager instance
-     * @return The configured SecurityInterceptor
-     */
-    @Provides
-    @Singleton
-    fun provideSecurityInterceptor(
-        logger: Logger,
-        deviceIdManager: DeviceIdManager
-    ): SecurityInterceptor {
-        return SecurityInterceptor(logger, deviceIdManager)
-    }
-
-    /**
-     * Provides a singleton instance of OkHttpClient configured with security features.
-     * This client includes security headers and certificate pinning.
-     *
-     * @param securityInterceptor The SecurityInterceptor instance
-     * @return A configured OkHttpClient with security features
-     */
-    @Provides
-    @Singleton
-    fun provideSecureOkHttpClient(
-        securityInterceptor: SecurityInterceptor
-    ): OkHttpClient {
-        return OkHttpClient.Builder()
-            .addInterceptor(securityInterceptor)
-            .build()
-    }
-} 
+}

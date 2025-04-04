@@ -1,30 +1,15 @@
 package com.gazzel.sesameapp.presentation.screens.auth
 
-// --- Android & System Imports ---
-import android.content.Context
-import android.content.Intent // <-- IMPORT Intent
-import android.content.IntentSender // <-- IMPORT IntentSender
+import android.content.Intent
+import android.content.IntentSender
 import android.util.Log
-
-// --- Dependency Injection Imports ---
-import javax.inject.Inject // <-- IMPORT Inject
-import javax.inject.Singleton
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import dagger.hilt.android.qualifiers.ApplicationContext
-
-// --- Google Identity Imports ---
-import com.google.android.gms.auth.api.identity.BeginSignInRequest // <-- IMPORT BeginSignInRequest
-import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.SignInClient
-import com.google.android.gms.common.api.ApiException // <-- IMPORT ApiException
-
-// --- Coroutine Imports ---
-import kotlinx.coroutines.suspendCancellableCoroutine // <-- IMPORT suspendCancellableCoroutine
-import kotlinx.coroutines.tasks.await // <-- IMPORT await for Task
-import kotlin.coroutines.resume // <-- IMPORT resume
+import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 // --- GoogleSignInHelper Class ---
@@ -75,17 +60,5 @@ class GoogleSignInHelper @Inject constructor( // Inject should resolve now
                 continuation.resumeWithException(Exception("Failed to handle sign in result: ${e.localizedMessage}", e))
             }
         }
-    }
-}
-
-
-// --- AuthModule remains the same ---
-@Module
-@InstallIn(SingletonComponent::class)
-object AuthModule {
-    @Provides
-    @Singleton
-    fun provideSignInClient(@ApplicationContext context: Context): SignInClient {
-        return Identity.getSignInClient(context)
     }
 }

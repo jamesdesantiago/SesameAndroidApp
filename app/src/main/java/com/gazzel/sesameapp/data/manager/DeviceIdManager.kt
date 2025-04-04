@@ -5,9 +5,9 @@ import android.provider.Settings
 import com.gazzel.sesameapp.domain.exception.SecurityException
 import com.gazzel.sesameapp.domain.util.Logger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
-import java.security.MessageDigest
 
 /**
  * A singleton manager responsible for generating and managing secure device identifiers.

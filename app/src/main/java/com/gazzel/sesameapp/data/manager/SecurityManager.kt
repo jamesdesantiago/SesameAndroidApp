@@ -3,6 +3,7 @@ package com.gazzel.sesameapp.data.manager
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.util.Base64
 import com.gazzel.sesameapp.domain.exception.AuthException
 import com.gazzel.sesameapp.domain.util.Logger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -13,7 +14,6 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Base64
 
 /**
  * A singleton security manager responsible for handling encryption, decryption, and secure storage operations.

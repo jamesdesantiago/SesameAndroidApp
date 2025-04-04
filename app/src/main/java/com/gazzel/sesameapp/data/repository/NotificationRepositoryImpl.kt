@@ -2,8 +2,6 @@ package com.gazzel.sesameapp.data.repository
 
 import com.gazzel.sesameapp.domain.model.Notification
 import com.gazzel.sesameapp.domain.repository.NotificationRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 
 class NotificationRepositoryImpl @Inject constructor(

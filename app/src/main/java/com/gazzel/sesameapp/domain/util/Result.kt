@@ -12,13 +12,13 @@ sealed class Result<out T> {
     }
 }
 
-inline fun <T> Result<T>.onSuccess(action: (T) -> Unit): Result<T> {
-    if (this is Result.Success) action(data)
+inline fun <T> Result<T>.onSuccess(action: (data: T) -> Unit): Result<T> {
+    if (this is Result.Success) action(data) // 'data' is the name from Result.Success
     return this
 }
 
-inline fun <T> Result<T>.onError(action: (AppException) -> Unit): Result<T> {
-    if (this is Result.Error) action(exception)
+inline fun <T> Result<T>.onError(action: (exception: AppException) -> Unit): Result<T> {
+    if (this is Result.Error) action(exception) // 'exception' is the name from Result.Error
     return this
 }
 

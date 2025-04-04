@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,9 +25,11 @@ class ProfileViewModel @Inject constructor(
     }
 
     private fun loadUserProfile() {
+        _uiState.value = ProfileUiState.Loading
         viewModelScope.launch {
             try {
-                val user = userRepository.getCurrentUser()
+                // Use the actual imported class name 'User'
+                val user : User = userRepository.getCurrentUser().first() // <<< FIX: Use 'User'
                 _uiState.value = ProfileUiState.Success(user)
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error(e.message ?: "Failed to load profile")
@@ -64,14 +67,3 @@ sealed class ProfileUiState {
     object SignedOut : ProfileUiState()
     data class Error(val message: String) : ProfileUiState()
 }
-
-data class User(
-    val id: String,
-    val username: String,
-    val displayName: String?,
-    val profilePicture: String?,
-    val email: String,
-    val listCount: Int,
-    val followerCount: Int,
-    val followingCount: Int
-) 

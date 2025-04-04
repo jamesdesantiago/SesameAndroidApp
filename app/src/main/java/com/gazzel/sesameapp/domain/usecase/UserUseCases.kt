@@ -1,7 +1,8 @@
 package com.gazzel.sesameapp.domain.usecase
 
-import com.gazzel.sesameapp.domain.model.User // Explicit import
-import com.gazzel.sesameapp.domain.repository.UserRepository // Explicit import
+import com.gazzel.sesameapp.domain.model.User
+import com.gazzel.sesameapp.domain.repository.UserRepository
+import com.gazzel.sesameapp.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 

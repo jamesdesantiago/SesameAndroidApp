@@ -1,15 +1,13 @@
 package com.gazzel.sesameapp.presentation.viewmodels
 
-import android.util.Log // <-- Add Log import
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.gazzel.sesameapp.data.service.PlaceUpdate
 import com.gazzel.sesameapp.data.service.UserListService
-import com.gazzel.sesameapp.domain.model.ListResponse // Domain ListResponse
-import com.gazzel.sesameapp.data.service.PlaceUpdate // <-- IMPORT Service DTO
-// Remove domain PlaceUpdate import if present
-import com.gazzel.sesameapp.domain.model.ListUpdate // Assuming service uses this one
-// REMOVE: import com.gazzel.sesameapp.presentation.activities.ListDetailCache
+import com.gazzel.sesameapp.domain.model.ListResponse
+import com.gazzel.sesameapp.domain.model.ListUpdate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,7 +32,9 @@ class ListDetailsViewModel(
             description = null,
             isPrivate = false, // Use isPrivate
             collaborators = emptyList(),
-            places = null // Default to null or emptyList() based on ListResponse definition
+            places = null,
+            createdAt = 0L, // <<< ADD Default value
+            updatedAt = 0L  // <<< ADD Default value
         )
     )
     val detail: StateFlow<ListResponse> = _detail.asStateFlow() // Correct type
@@ -68,7 +68,7 @@ class ListDetailsViewModel(
             if (token != null) {
                 try {
                     // Ensure service method name and params match UserListService.kt
-                    val response = listService.getListDetail(id = listId, token = "Bearer $token")
+                    val response = listService.getListDetail(listId = listId, token = "Bearer $token")
                     if (response.isSuccessful) {
                         val fetchedDetail = response.body()
                         if (fetchedDetail != null) {
@@ -110,7 +110,7 @@ class ListDetailsViewModel(
                     val updateData = ListUpdate(isPrivate = newPrivacyStatus)
                     // Ensure service method name and params match UserListService.kt
                     val response = listService.updateList(
-                        id = listId, // Assuming service path param is 'id'
+                        listId = listId, // Assuming service path param is 'id'
                         update = updateData,
                         token = "Bearer $token" // Assuming service header param is 'token'
                     )
@@ -149,7 +149,7 @@ class ListDetailsViewModel(
                     val updateData = ListUpdate(name = newName)
                     // Ensure service method name and params match UserListService.kt
                     val response = listService.updateList(
-                        id = listId,
+                        listId = listId,
                         update = updateData,
                         token = "Bearer $token"
                     )
@@ -218,7 +218,7 @@ class ListDetailsViewModel(
                 try {
                     // Ensure service method name and params match UserListService.kt
                     val response = listService.deleteList(
-                        id = listId, // Assuming service path param is 'id'
+                        listId = listId, // Assuming service path param is 'id'
                         token = "Bearer $token" // Assuming service header param is 'token'
                     )
                     if (response.isSuccessful || response.code() == 204) {

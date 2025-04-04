@@ -1,9 +1,8 @@
 package com.gazzel.sesameapp.data.model
 
 // Import SerializedName for Gson
-import com.google.gson.annotations.SerializedName
 // Keep Timestamp for now, but verify JSON format (see notes below)
-import com.google.firebase.Timestamp
+import com.google.gson.annotations.SerializedName
 
 data class PlaceDto(
     // Use @SerializedName if JSON key differs from Kotlin property name

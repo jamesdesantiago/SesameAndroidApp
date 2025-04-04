@@ -1,7 +1,3 @@
-// Root build.gradle.kts - CORRECTED
-
-// NO buildscript block
-
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 plugins {
@@ -9,7 +5,6 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false // Add if app uses it
-    //alias(libs.plugins.kotlin.kapt) apply false    // Add for Hilt
     alias(libs.plugins.ksp) apply false            // Add for Room
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.google.services) apply false

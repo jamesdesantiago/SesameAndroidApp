@@ -1,19 +1,19 @@
 package com.gazzel.sesameapp.data.repository
 
-import com.google.android.gms.maps.model.LatLng
 import com.gazzel.sesameapp.data.local.dao.PlaceDao
 import com.gazzel.sesameapp.data.local.entity.PlaceEntity
-import com.gazzel.sesameapp.data.service.ListService // Use YOUR ListService
-import com.gazzel.sesameapp.data.model.PlaceDto      // Import the DTO
+import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.service.ListService
 import com.gazzel.sesameapp.domain.exception.AppException
-import com.gazzel.sesameapp.domain.model.Place       // Domain Place (used elsewhere)
-import com.gazzel.sesameapp.domain.model.PlaceItem   // Domain PlaceItem
+import com.gazzel.sesameapp.domain.model.Place
+import com.gazzel.sesameapp.domain.model.PlaceItem
 import com.gazzel.sesameapp.domain.repository.PlaceRepository
 import com.gazzel.sesameapp.domain.util.Resource
 import com.gazzel.sesameapp.domain.util.Result
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 

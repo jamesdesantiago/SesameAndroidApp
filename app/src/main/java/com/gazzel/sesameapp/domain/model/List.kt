@@ -1,9 +1,5 @@
 package com.gazzel.sesameapp.domain.model
 
-import android.util.Log
-import com.google.gson.annotations.SerializedName
-import java.util.Date
-
 data class SesameList(
     val id: String = "",
     val title: String = "",

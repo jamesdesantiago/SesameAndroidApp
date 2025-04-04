@@ -2,6 +2,7 @@ package com.gazzel.sesameapp.presentation.screens.friends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gazzel.sesameapp.domain.model.Friend
 import com.gazzel.sesameapp.domain.usecase.FriendUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,12 +54,3 @@ sealed class FriendsUiState {
     data class Success(val friends: List<Friend>) : FriendsUiState()
     data class Error(val message: String) : FriendsUiState()
 }
-
-data class Friend(
-    val id: String,
-    val username: String,
-    val displayName: String?,
-    val profilePicture: String?,
-    val listCount: Int,
-    val isFollowing: Boolean
-) 

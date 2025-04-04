@@ -12,6 +12,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.gazzel.sesameapp.R
+import android.util.Log
 
 @Singleton
 class GoogleSignInManager @Inject constructor(
@@ -34,11 +36,16 @@ class GoogleSignInManager @Inject constructor(
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             val account = task.getResult(ApiException::class.java)
-            val idToken = account.idToken
+            val idToken: String? = account.idToken
+
+            if (idToken == null) {
+                throw IllegalStateException("GoogleSignInAccount.idToken was null. Cannot authenticate.")
+            }
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             auth.signInWithCredential(credential).await()
             Result.success(idToken)
         } catch (e: Exception) {
+            Log.e("GoogleSignInManager", "handleSignInResult failed", e) // Add logging
             Result.failure(e)
         }
     }

@@ -1,7 +1,10 @@
 package com.gazzel.sesameapp.di
 
+import com.gazzel.sesameapp.data.network.SecurityInterceptor
 import com.gazzel.sesameapp.data.remote.UserApiService
-import com.gazzel.sesameapp.data.service.UserListService // Updated to UserListService
+import com.gazzel.sesameapp.data.remote.UserProfileService
+import com.gazzel.sesameapp.data.service.ListService
+import com.gazzel.sesameapp.data.service.UserListService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,11 +22,16 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    // Add SecurityInterceptor as a parameter
+    fun provideOkHttpClient(securityInterceptor: SecurityInterceptor): OkHttpClient { // <<< ADD parameter
         return OkHttpClient.Builder()
+            // Add your custom SecurityInterceptor
+            .addInterceptor(securityInterceptor) // <<< ADD this interceptor
+            // Keep the Logging Interceptor
             .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = HttpLoggingInterceptor.Level.BODY // Or your desired level
             })
+            // Keep other configurations
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
@@ -42,6 +50,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideUserProfileService(retrofit: Retrofit): UserProfileService {
+        return retrofit.create(UserProfileService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideUserApiService(retrofit: Retrofit): UserApiService {
         return retrofit.create(UserApiService::class.java)
     }
@@ -50,5 +64,11 @@ object NetworkModule {
     @Singleton
     fun provideUserListService(retrofit: Retrofit): UserListService { // Updated to UserListService
         return retrofit.create(UserListService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideListService(retrofit: Retrofit): ListService { // Provide ListService
+        return retrofit.create(ListService::class.java) // Create using Retrofit
     }
 }

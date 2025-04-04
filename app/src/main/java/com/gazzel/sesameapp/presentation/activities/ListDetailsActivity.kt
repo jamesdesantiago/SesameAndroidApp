@@ -1,60 +1,58 @@
 package com.gazzel.sesameapp.presentation.activities
 
 // --- Android & System Imports ---
-import android.content.Intent
+
+// --- Google Maps Compose Imports --- VERIFY THESE ARE CORRECT ---
+
+// --- Firebase Auth ---
+
+// --- Your Project Imports --- VERIFY ALL PATHS AND FILE/CLASS NAMES ---
+
+// --- Networking & Coroutines ---
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-
-// --- Google Maps Compose Imports --- VERIFY THESE ARE CORRECT ---
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.CameraPositionState // Specific import
-import com.google.maps.android.compose.GoogleMap // Specific import
-import com.google.maps.android.compose.MapProperties // Specific import
-import com.google.maps.android.compose.MapUiSettings // Specific import
-import com.google.maps.android.compose.Marker // Specific import
-import com.google.maps.android.compose.MarkerState // Specific import
-import com.google.maps.android.compose.rememberCameraPositionState // Specific import
-
-// --- Firebase Auth ---
-import com.google.firebase.auth.FirebaseAuth
-
-// --- Your Project Imports --- VERIFY ALL PATHS AND FILE/CLASS NAMES ---
-import com.gazzel.sesameapp.R // If needed
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsViewModel
-import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsViewModelFactory
-import com.gazzel.sesameapp.domain.model.ListResponse
+import com.gazzel.sesameapp.data.model.PlaceDto
 import com.gazzel.sesameapp.data.service.UserListService
-import com.gazzel.sesameapp.presentation.components.listdetail.ListDetailTopBar
-import com.gazzel.sesameapp.presentation.components.listdetail.ListMapTabs
-import com.gazzel.sesameapp.presentation.components.listdetail.ListDetailMainContent
-import com.gazzel.sesameapp.presentation.components.listdetail.ListDropdownMenu
-import com.gazzel.sesameapp.presentation.components.listdetail.PlaceDropdownMenu
-import com.gazzel.sesameapp.presentation.components.listdetail.NoteViewer
-import com.gazzel.sesameapp.presentation.components.listdetail.NoteEditor
-import com.gazzel.sesameapp.presentation.components.listdetail.SharePlaceOverlay
-import com.gazzel.sesameapp.presentation.components.listdetail.ShareListOverlay
-import com.gazzel.sesameapp.presentation.components.listdetail.EditListNameDialog
+import com.gazzel.sesameapp.domain.model.PlaceItem
 import com.gazzel.sesameapp.presentation.components.listdetail.DeleteConfirmDialog
 import com.gazzel.sesameapp.presentation.components.listdetail.DeleteSuccessDialog
-import com.gazzel.sesameapp.data.model.PlaceDto // For mapping
-import com.gazzel.sesameapp.domain.model.PlaceItem
-
-// --- Networking & Coroutines ---
-import kotlinx.coroutines.delay
+import com.gazzel.sesameapp.presentation.components.listdetail.EditListNameDialog
+import com.gazzel.sesameapp.presentation.components.listdetail.ListDetailMainContent
+import com.gazzel.sesameapp.presentation.components.listdetail.ListDetailTopBar
+import com.gazzel.sesameapp.presentation.components.listdetail.ListDropdownMenu
+import com.gazzel.sesameapp.presentation.components.listdetail.ListMapTabs
+import com.gazzel.sesameapp.presentation.components.listdetail.NoteEditor
+import com.gazzel.sesameapp.presentation.components.listdetail.NoteViewer
+import com.gazzel.sesameapp.presentation.components.listdetail.PlaceDropdownMenu
+import com.gazzel.sesameapp.presentation.components.listdetail.ShareListOverlay
+import com.gazzel.sesameapp.presentation.components.listdetail.SharePlaceOverlay
+import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsViewModel
+import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsViewModelFactory
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.auth.FirebaseAuth
+import com.google.maps.android.compose.CameraPositionState
+import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -215,17 +213,6 @@ fun DetailScreen(viewModel: ListDetailsViewModel) {
         }
     }
 
-    // Navigate back after delete success message
-    LaunchedEffect(showDeleteSuccessDialog) {
-        if (showDeleteSuccessDialog) {
-            DeleteSuccessDialog(
-                listName = detail.name,
-                onDismiss = { showDeleteSuccessDialog = false },
-                onSuccess = {} // <-- ADD this empty lambda
-            )
-        }
-    }
-
     var query by remember { mutableStateOf("") } // Search query state
 
     Scaffold(
@@ -261,7 +248,10 @@ fun DetailScreen(viewModel: ListDetailsViewModel) {
                 errorMessage = errorMessage,
                 cameraPositionState = cameraPositionState,
                 // Pass place ID (String) to onMoreClick
-                onMoreClick: (placeId: String) -> Unit // Correct lambda
+                onMoreClick = { placeId: String -> // Pass the lambda value directly
+                    Log.d("ListDetail", "Setting expanded menu for placeId=$placeId")
+                    placeMenuExpanded = placeId
+                }
             )
 
             // --- Overlays and Dialogs ---
@@ -295,11 +285,12 @@ fun DetailScreen(viewModel: ListDetailsViewModel) {
                         onShare = { placeId: String -> sharingPlaceId = placeId }, // Correct lambda: Set state for place share overlay
                         onTags = { /* TODO */ },
                         // Update lambda parameter type and logic
-                        onNotes = { placeId: String -> // Explicitly String
-                            // Find the correct PlaceItem
-                            val placeItem = detail.places?.find { it.id == placeId }
-                            currentNote = placeItem?.notes ?: "" // Get notes from PlaceItem
-                            viewingNotesPlaceId = placeId // Set state to show note viewer
+                        onNotes = { placeId -> // placeId is String from DropdownMenu param
+                            // Find the original PlaceDto and map it OR find the PlaceItem if already mapped
+                            val foundDto = detail.places?.find { it.id == placeId } // Assuming detail.places is List<PlaceDto>?
+                            val foundItem = foundDto?.toPlaceItem(detail.id) // Map the found DTO
+                            currentNote = foundItem?.notes ?: ""
+                            viewingNotesPlaceId = placeId
                         },
                         onAddToList = { /* TODO */ },
                         onDeleteItem = { /* TODO: Call ViewModel delete place method */ }
@@ -377,8 +368,7 @@ fun DetailScreen(viewModel: ListDetailsViewModel) {
                 if (showDeleteSuccessDialog) {
                     DeleteSuccessDialog(
                         listName = detail.name,
-                        onDismiss = { showDeleteSuccessDialog = false }
-                        // Remove onSuccess = {} if the definition doesn't have it
+                        onDismiss = { showDeleteSuccessDialog = false },
                     )
                 }
             }

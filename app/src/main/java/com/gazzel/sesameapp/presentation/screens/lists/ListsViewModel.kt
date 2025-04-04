@@ -2,13 +2,13 @@ package com.gazzel.sesameapp.presentation.screens.lists
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gazzel.sesameapp.domain.model.SesameList
 import com.gazzel.sesameapp.domain.repository.ListRepository
 import com.gazzel.sesameapp.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,7 +28,9 @@ class ListsViewModel @Inject constructor(
     private fun loadLists() {
         viewModelScope.launch {
             try {
-                val user = userRepository.getCurrentUser()
+                val userFlow = userRepository.getCurrentUser()
+                val user = userFlow.first() // <<< user is a Flow<User>
+                // ERROR IS HERE: Trying to access user.id directly on the Flow
                 val userLists = listRepository.getUserLists(user.id).collect { lists ->
                     _uiState.value = ListsUiState.Success(lists)
                 }

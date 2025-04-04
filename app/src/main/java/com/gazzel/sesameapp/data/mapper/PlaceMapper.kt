@@ -1,14 +1,14 @@
 package com.gazzel.sesameapp.data.mapper
 
+// Keep this import ONLY if you need to CREATE Timestamps when converting FROM domain Date
+// import com.google.firebase.Timestamp
 import com.gazzel.sesameapp.data.model.OpeningHoursDto
 import com.gazzel.sesameapp.data.model.PlaceDto
 import com.gazzel.sesameapp.domain.model.OpeningHours
 import com.gazzel.sesameapp.domain.model.Place
 import com.google.android.gms.maps.model.LatLng
-// Keep this import ONLY if you need to CREATE Timestamps when converting FROM domain Date
-// import com.google.firebase.Timestamp
+import java.text.SimpleDateFormat
 import java.util.Date
-import java.text.SimpleDateFormat // For parsing/formatting date strings
 import java.util.Locale
 import java.util.TimeZone
 

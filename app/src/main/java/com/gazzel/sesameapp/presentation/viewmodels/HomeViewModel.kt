@@ -1,10 +1,11 @@
 package com.gazzel.sesameapp.presentation.viewmodels
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gazzel.sesameapp.domain.model.PlaceItem
-import com.gazzel.sesameapp.domain.repository.PlaceRepository
 import com.gazzel.sesameapp.domain.repository.LocationRepository
+import com.gazzel.sesameapp.domain.repository.PlaceRepository
 import com.gazzel.sesameapp.domain.util.Resource
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,9 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.math.sin
-import kotlin.math.cos
 import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 sealed class HomeUiState {
@@ -52,10 +53,15 @@ class HomeViewModel @Inject constructor(
             _uiState.value = HomeUiState.Loading
             try {
                 val locationResult = locationRepository.getCurrentLocation()
+                // Pass locationResult.data directly (which is LatLng?)
                 if (locationResult is Resource.Success) {
-                    handleLocationSuccess(locationResult.data)
+                    handleLocationSuccess(locationResult.data) // Pass LatLng?
                 } else if (locationResult is Resource.Error) {
-                    _uiState.value = HomeUiState.Error(locationResult.message)
+                    // Pass message or default
+                    _uiState.value = HomeUiState.Error(locationResult.message ?: "Unknown location error")
+                } else if (locationResult is Resource.Loading) {
+                    // State is already Loading, maybe do nothing or log
+                    Log.d("HomeViewModel", "Location is loading...")
                 }
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error(e.message ?: "Unknown error occurred")
@@ -63,7 +69,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun handleLocationSuccess(location: LatLng) {
+    private suspend fun handleLocationSuccess(location: LatLng?) {
+        if (location == null) { // <<< ADD null check
+            _uiState.value = HomeUiState.Error("Failed to get valid location data.")
+            return
+        }
         when (val placesResult = placeRepository.getPlaces()) {
             is Resource.Success -> {
                 // Safely unwrap null to an empty list
@@ -87,6 +97,16 @@ class HomeViewModel @Inject constructor(
                 _uiState.value = HomeUiState.Error(
                     placesResult.message ?: "Unable to load places."
                 )
+            }
+            is Resource.Loading -> {
+                // Places are still loading. The overall state might already be HomeUiState.Loading.
+                // You might log this or potentially keep the UI in a loading state
+                // if it wasn't already set. For now, just handling the case is enough.
+                Log.d("HomeViewModel", "Location success, but places are still loading...")
+                // Optionally ensure UI state reflects loading if it wasn't set before:
+                // if (_uiState.value !is HomeUiState.Loading) {
+                //     _uiState.value = HomeUiState.Loading
+                // }
             }
         }
     }

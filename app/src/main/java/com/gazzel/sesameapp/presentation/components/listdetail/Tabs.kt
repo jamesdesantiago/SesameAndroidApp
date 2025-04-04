@@ -1,9 +1,11 @@
 package com.gazzel.sesameapp.presentation.components.listdetail
 
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxWidth
 
 @Composable
 fun ListMapTabs(

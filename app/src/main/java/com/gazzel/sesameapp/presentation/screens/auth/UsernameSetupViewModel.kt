@@ -2,7 +2,8 @@ package com.gazzel.sesameapp.presentation.screens.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gazzel.sesameapp.domain.usecase.UserUseCases // Import your use cases
+import com.gazzel.sesameapp.domain.usecase.UserUseCases
+import com.gazzel.sesameapp.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,15 +21,13 @@ sealed class UsernameSetupState {
 
 @HiltViewModel
 class UsernameSetupViewModel @Inject constructor(
-    private val userUseCases: UserUseCases // Inject the user use cases
+    private val userUseCases: UserUseCases
 ) : ViewModel() {
 
-    // Use the specific state for this screen
     private val _uiState = MutableStateFlow<UsernameSetupState>(UsernameSetupState.Idle)
     val uiState: StateFlow<UsernameSetupState> = _uiState.asStateFlow()
 
     fun updateUsername(username: String) {
-        // Basic validation (you might add more complex checks)
         if (username.isBlank() || username.length < 3) {
             _uiState.value = UsernameSetupState.Error("Username must be at least 3 characters long.")
             return
@@ -38,17 +37,23 @@ class UsernameSetupViewModel @Inject constructor(
             _uiState.value = UsernameSetupState.Loading
             try {
                 // Call the use case/repository function
-                val result = userUseCases.updateUsername(username)
+                val result : Result<Unit> = userUseCases.updateUsername(username) // Get the Result
 
-                result.onSuccess {
-                    _uiState.value = UsernameSetupState.Success // Navigate on success
-                }.onError { exception ->
-                    // Handle specific errors from repository if needed
-                    _uiState.value = UsernameSetupState.Error(exception.message ?: "Failed to update username")
+                // --- Use 'when' to handle the result ---
+                when (result) {
+                    is Result.Success -> {
+                        // No data to extract for Result<Unit>, just set success state
+                        _uiState.value = UsernameSetupState.Success
+                    }
+                    is Result.Error -> {
+                        // Access the exception directly from the result object
+                        _uiState.value = UsernameSetupState.Error(result.exception.message ?: "Failed to update username")
+                    }
                 }
+                // --- End 'when' block ---
 
             } catch (e: Exception) {
-                // Catch unexpected errors
+                // Catch unexpected errors during the coroutine/use case call itself
                 _uiState.value = UsernameSetupState.Error(e.message ?: "An unexpected error occurred")
             }
         }

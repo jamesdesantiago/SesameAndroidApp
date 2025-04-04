@@ -2,23 +2,29 @@ package com.gazzel.sesameapp.presentation.components.listdetail
 
 import android.content.Intent
 import android.util.Log
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.gazzel.sesameapp.domain.model.PlaceItem
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Message
-import androidx.compose.material.icons.filled.Share
 
 @Composable
 fun SharePlaceOverlay(
@@ -157,7 +163,7 @@ fun SharePlaceOverlay(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Message,
+                            imageVector = Icons.Default.Send,
                             contentDescription = "Share via SMS",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -310,7 +316,7 @@ fun ShareListOverlay(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Message,
+                            imageVector = Icons.Default.Send,
                             contentDescription = "Share via SMS",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
