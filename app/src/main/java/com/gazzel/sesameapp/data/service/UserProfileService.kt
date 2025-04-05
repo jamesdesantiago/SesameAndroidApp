@@ -1,6 +1,6 @@
 package com.gazzel.sesameapp.data.service
 
-import com.gazzel.sesameapp.domain.model.User
+import com.gazzel.sesameapp.data.model.User as DataUser
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -21,7 +21,7 @@ interface UserProfileService {
     suspend fun searchUsersByEmail(
         @Query("email") email: String,
         @Header("Authorization") token: String
-    ): Response<List<User>>
+    ): Response<List<DataUser>>
 
     @POST("users/{userId}/follow")
     suspend fun followUser(
@@ -38,12 +38,12 @@ interface UserProfileService {
     @GET("users/following")
     suspend fun getFollowing(
         @Header("Authorization") token: String
-    ): Response<List<User>>
+    ): Response<List<DataUser>>
 
     @GET("users/followers")
     suspend fun getFollowers(
         @Header("Authorization") token: String
-    ): Response<List<User>>
+    ): Response<List<DataUser>>
 
     @POST("users/{userId}/friend-request")
     suspend fun sendFriendRequest(
@@ -55,7 +55,7 @@ interface UserProfileService {
     suspend fun getUserProfile(
         @Path("userId") userId: String,
         @Header("Authorization") token: String
-    ): Response<User>
+    ): Response<DataUser>
 
     @POST("users/set-username")
     suspend fun setUsername(

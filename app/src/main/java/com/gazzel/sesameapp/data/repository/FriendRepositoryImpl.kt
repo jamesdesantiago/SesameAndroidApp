@@ -1,7 +1,7 @@
 package com.gazzel.sesameapp.data.repository // Or appropriate package
 
 import android.util.Log
-import com.gazzel.sesameapp.data.remote.UserProfileService
+import com.gazzel.sesameapp.data.service.UserProfileService
 import com.gazzel.sesameapp.domain.model.Friend
 import com.gazzel.sesameapp.domain.repository.FriendRepository
 import com.google.firebase.auth.FirebaseAuth

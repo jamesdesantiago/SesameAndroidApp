@@ -1,7 +1,7 @@
 // Add these imports at the TOP of app/build.gradle.kts
 import java.util.Properties
-import java.io.File // <-- Import java.io.File
-import java.io.FileInputStream // <-- Import java.io.FileInputStream
+import java.io.File
+import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -12,37 +12,37 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
-// Function to safely load properties
-// Use the imported File type directly now
+// Function to safely load properties (Keep as is)
 fun getApiKey(projectRootDir: File, propertyName: String): String {
+    // ... (function implementation)
     val properties = Properties()
-    val localPropertiesFile = File(projectRootDir, "local.properties") // Use imported File
+    val localPropertiesFile = File(projectRootDir, "local.properties")
     if (localPropertiesFile.isFile) {
         try {
-            // Add explicit type 'FileInputStream' for 'fis' in the lambda (helps compiler)
             FileInputStream(localPropertiesFile).use { fis: FileInputStream ->
-                properties.load(fis) // Now compiler knows 'fis' is an InputStream
+                properties.load(fis)
             }
             return properties.getProperty(propertyName)
-                ?: throw RuntimeException("'$propertyName' not found in local.properties. Make sure it's defined.")
+                ?: throw RuntimeException("'$propertyName' not found in local.properties.")
         } catch (e: Exception) {
             println("Warning: Could not read local.properties: ${e.message}")
-            throw RuntimeException("Failed to read '$propertyName' from local.properties. Make sure the file exists and the property is set.", e)
+            throw RuntimeException("Failed to read '$propertyName' from local.properties.", e)
         }
     } else {
-        throw RuntimeException("local.properties file not found in root project directory. Please create it and add '$propertyName'.")
+        throw RuntimeException("local.properties file not found.")
     }
 }
 
 
 android {
+    // ... (namespace, compileSdk, defaultConfig, buildTypes, compileOptions, kotlinOptions, buildFeatures, packaging) ...
     namespace = "com.gazzel.sesameapp"
-    compileSdk = 35
+    compileSdk = 35 // Ensure this matches a valid SDK version you have installed
 
     defaultConfig {
         applicationId = "com.gazzel.sesameapp"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 35 // Match compileSdk or use a recent API level
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -50,13 +50,8 @@ android {
             useSupportLibrary = true
         }
 
-        // Read the API key from local.properties
         val mapsApiKey = getApiKey(rootProject.rootDir, "MAPS_API_KEY")
-
-        // Make the API key available in BuildConfig
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
-
-        // Make the API key available as a manifest placeholder
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
@@ -67,16 +62,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // You can reuse the key loading logic here if needed for release-specific keys
-            // val mapsApiKeyRelease = getApiKey(rootProject.rootDir, "MAPS_API_KEY_RELEASE") // Example
-            // buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKeyRelease\"")
-            // manifestPlaceholders["mapsApiKey"] = mapsApiKeyRelease
         }
         debug {
-            // If you have specific debug keys, load them here
-            // val mapsApiKeyDebug = getApiKey(rootProject.rootDir, "MAPS_API_KEY_DEBUG") // Example
-            // buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKeyDebug\"")
-            // manifestPlaceholders["mapsApiKey"] = mapsApiKeyDebug
+            // Application signing configuration can go here if needed
         }
     }
     compileOptions {
@@ -88,6 +76,7 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        dataBinding = false
     }
     packaging {
         resources {
@@ -97,73 +86,69 @@ android {
 }
 
 ksp {
+    // ... (ksp args) ...
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.incremental", "true")
     arg("room.expandProjection", "true")
 }
 
 dependencies {
-    // Add ALL dependencies from your problematic project back here,
-    // ensuring they use the updated versions from libs.versions.toml where applicable
-    implementation(platform(libs.androidx.compose.bom)) // Use the newer BOM
+    implementation(platform(libs.androidx.compose.bom))
 
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.material)
-    implementation(libs.compose.material.icons.core)
+    implementation(libs.material) // Google Material Components
 
-    // Compose (BOM handles versions)
+    // Compose
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
-    // Hilt (Use updated versions)
+    // Compose Material Icons (Both core and extended)
+    implementation(libs.compose.material.icons.core)
+    implementation(libs.compose.material.icons.extended) // <-- ADDED THIS
+
+    // Hilt
     implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler) // Use ksp for Hilt compiler
+    ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Room (Use KSP)
+    // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler) // Use ksp for Room compiler
+    ksp(libs.androidx.room.compiler)
 
-    // Retrofit (Use updated versions)
+    // Retrofit
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
 
     // OkHttp
     implementation(libs.okhttp)
-    implementation(libs.okhttp.logging) // Ensure you have this alias in libs.versions.toml
+    implementation(libs.okhttp.logging)
 
     // Coroutines
-    implementation(libs.coroutines) // Ensure you have this alias
+    implementation(libs.coroutines)
 
     // Firebase
-    // implementation(platform(libs.firebase.bom)) // Uncomment if using Firebase BOM
-    implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.auth.ktx)
 
     // Google Play Services
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
-    implementation(libs.play.services.auth) // For Google Sign-In (legacy, maybe remove if only using Identity)
-    implementation(libs.play.services.identity) // <-- ADD THIS for the newer Google Sign-In (One Tap)
+    implementation(libs.play.services.auth)
 
-    // Places
-    implementation(libs.places) // The Places SDK itself
+    // Places SDK
+    implementation(libs.places)
 
     // Maps Compose
-    implementation(libs.google.maps) // Assuming this is your alias for maps-compose
+    implementation(libs.google.maps)
 
-    // Testing - Add if needed
-    // testImplementation(libs.junit)
-    // androidTestImplementation(libs.androidx.test.ext.junit)
-    // androidTestImplementation(libs.androidx.test.espresso.core)
-    // androidTestImplementation(platform(libs.androidx.compose.bom))
-    // androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    // debugImplementation(libs.androidx.compose.ui.tooling)
-    // debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // SQL DB
+    implementation(libs.androidx.sqlite.ktx)
+
+    // Testing (Uncomment if needed)
+    // ...
 }

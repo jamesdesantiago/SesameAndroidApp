@@ -13,7 +13,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 // --- GoogleSignInHelper Class ---
-class GoogleSignInHelper @Inject constructor( // Inject should resolve now
+class   GoogleSignInHelper @Inject constructor( // Inject should resolve now
     private val oneTapClient: SignInClient
 ) {
     private val signInRequest = BeginSignInRequest.builder() // BeginSignInRequest should resolve

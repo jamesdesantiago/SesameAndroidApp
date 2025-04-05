@@ -8,24 +8,24 @@ import com.google.android.libraries.places.api.net.PlacesClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.gazzel.sesameapp.BuildConfig
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AuthModule {
     @Provides
     @Singleton
-    fun provideSignInClient(@ApplicationContext context: Context): SignInClient {
+    fun provideSignInClient(context: Context): SignInClient {
         return Identity.getSignInClient(context)
     }
 
     @Provides
     @Singleton
-    fun providePlacesClient(@ApplicationContext context: Context): PlacesClient {
+    fun providePlacesClient(context: Context): PlacesClient {
         if (!Places.isInitialized()) {
-            Places.initialize(context, "YOUR_API_KEY")
+            Places.initialize(context, BuildConfig.MAPS_API_KEY)
         }
         return Places.createClient(context)
     }

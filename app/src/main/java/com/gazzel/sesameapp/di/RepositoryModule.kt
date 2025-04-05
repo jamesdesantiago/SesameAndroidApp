@@ -1,17 +1,7 @@
 package com.gazzel.sesameapp.di
 
-import com.gazzel.sesameapp.data.repository.FriendRepositoryImpl
-import com.gazzel.sesameapp.data.repository.HelpRepositoryImpl
-import com.gazzel.sesameapp.data.repository.ListRepositoryImpl
-import com.gazzel.sesameapp.data.repository.LocationRepositoryImpl
-import com.gazzel.sesameapp.data.repository.NotificationRepositoryImpl
-import com.gazzel.sesameapp.data.repository.PlaceRepositoryImpl
-import com.gazzel.sesameapp.domain.repository.FriendRepository
-import com.gazzel.sesameapp.domain.repository.HelpRepository
-import com.gazzel.sesameapp.domain.repository.ListRepository
-import com.gazzel.sesameapp.domain.repository.LocationRepository
-import com.gazzel.sesameapp.domain.repository.NotificationRepository
-import com.gazzel.sesameapp.domain.repository.PlaceRepository
+import com.gazzel.sesameapp.data.repository.*
+import com.gazzel.sesameapp.domain.repository.*
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -38,13 +28,13 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindListRepository(
-        listRepositoryImpl: ListRepositoryImpl // Inject the implementation
-    ): ListRepository // Return the interface
+        listRepositoryImpl: ListRepositoryImpl
+    ): ListRepository
 
     @Binds
     @Singleton
     abstract fun bindFriendRepository(
-        friendRepositoryImpl: FriendRepositoryImpl // Inject implementation
+        friendRepositoryImpl: FriendRepositoryImpl
     ): FriendRepository
 
     companion object {
@@ -52,6 +42,12 @@ abstract class RepositoryModule {
         @Singleton
         fun provideHelpRepository(): HelpRepository = HelpRepositoryImpl()
     }
+
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(
+        userRepositoryImpl: UserRepositoryImpl
+    ): UserRepository
 
     @Binds
     @Singleton

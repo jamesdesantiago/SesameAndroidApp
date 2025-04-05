@@ -1,25 +1,25 @@
 package com.gazzel.sesameapp.data.model
 
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.PropertyName
+import com.google.gson.annotations.SerializedName
 
 data class ListDto(
-    @PropertyName("id")
+    @SerializedName("id") // <-- CHANGE Annotation
     val id: String = "",
-    @PropertyName("title")
+    @SerializedName("title") // <-- CHANGE Annotation
     val title: String = "",
-    @PropertyName("description")
+    @SerializedName("description") // <-- CHANGE Annotation
     val description: String? = null,
-    @PropertyName("userId")
+    @SerializedName("userId") // <-- CHANGE Annotation (adjust JSON key if different)
     val userId: String = "",
-    @PropertyName("createdAt")
-    val createdAt: Timestamp = Timestamp.now(),
-    @PropertyName("updatedAt")
-    val updatedAt: Timestamp = Timestamp.now(),
-    @PropertyName("isPublic")
+    // Adjust type based on what your FastAPI returns for timestamps
+    @SerializedName("createdAt") // <-- CHANGE Annotation
+    val createdAt: Long = 0L, // Example: Assuming Long (Unix millis)
+    @SerializedName("updatedAt") // <-- CHANGE Annotation
+    val updatedAt: Long = 0L, // Example: Assuming Long (Unix millis)
+    @SerializedName("isPublic") // <-- CHANGE Annotation (adjust JSON key if different)
     val isPublic: Boolean = false,
-    @PropertyName("placeCount")
+    @SerializedName("placeCount") // <-- CHANGE Annotation
     val placeCount: Int = 0,
-    @PropertyName("followerCount")
+    @SerializedName("followerCount") // <-- CHANGE Annotation
     val followerCount: Int = 0
 ) 
