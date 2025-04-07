@@ -30,8 +30,11 @@ class CreateListViewModel @Inject constructor(
                     createdAt = System.currentTimeMillis(),
                     updatedAt = System.currentTimeMillis()
                 )
-                listRepository.createList(newList)
-                _uiState.value = CreateListUiState.Success
+                result.onSuccess { createdList ->
+                    _uiState.value = CreateListUiState.Success(createdList.id) // Pass the ID
+                }.onError { exception ->
+                    _uiState.value = CreateListUiState.Error(exception.message ?: "Failed to create list")
+                }
             } catch (e: Exception) {
                 _uiState.value = CreateListUiState.Error(e.message ?: "Failed to create list")
             }
@@ -42,6 +45,6 @@ class CreateListViewModel @Inject constructor(
 sealed class CreateListUiState {
     object Initial : CreateListUiState()
     object Loading : CreateListUiState()
-    object Success : CreateListUiState()
+    data class Success(val newListId: String?) : CreateListUiState()
     data class Error(val message: String) : CreateListUiState()
 } 

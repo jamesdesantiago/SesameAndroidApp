@@ -10,14 +10,18 @@ import com.gazzel.sesameapp.presentation.screens.auth.LoginScreen
 import com.gazzel.sesameapp.presentation.screens.auth.UsernameSetupScreen
 import com.gazzel.sesameapp.presentation.screens.friends.FriendsScreen
 import com.gazzel.sesameapp.presentation.screens.home.HomeScreen
+import com.gazzel.sesameapp.presentation.screens.listdetail.ListDetailScreen
+import com.gazzel.sesameapp.presentation.screens.lists.CreateListScreen
 import com.gazzel.sesameapp.presentation.screens.lists.ListsScreen
 import com.gazzel.sesameapp.presentation.screens.profile.ProfileScreen
+import com.gazzel.sesameapp.presentation.screens.search.SearchPlacesScreen
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
     object UsernameSetup : Screen("username_setup")
     object Home : Screen("home")
     object Lists : Screen("lists")
+    object CreateList : Screen("create_list")
     object Friends : Screen("friends")
     object Profile : Screen("profile")
     object EditProfile : Screen("edit_profile")
@@ -36,6 +40,11 @@ sealed class Screen(val route: String) {
         // Helper function to create the route with a specific ID
         fun createRoute(listId: String) = "list_details/$listId"
     }
+    object SearchPlaces : Screen("search_places/{listId}") { // Add route object with arg
+        const val ARG_LIST_ID = "listId"
+        val routeWithArg = "search_places/{$ARG_LIST_ID}"
+        fun createRoute(listId: String) = "search_places/$listId"
+    }
     // --- END ListDetail Definition ---
 }
 
@@ -49,8 +58,10 @@ fun NavGraph(navController: NavHostController) {
         composable(Screen.UsernameSetup.route) { UsernameSetupScreen(navController) }
         composable(Screen.Home.route) { HomeScreen(navController) } // Assuming HomeScreen is a Composable
         composable(Screen.Lists.route) { ListsScreen(navController) }
+        composable(Screen.CreateList.route) { CreateListScreen(navController) }
         composable(Screen.Friends.route) { FriendsScreen(navController) } // Assuming FriendsScreen is a Composable
         composable(Screen.Profile.route) { ProfileScreen(navController) }
+        composable(Screen.CreateList.route) { CreateListScreen(navController) }
 
         // Add composables for other screens if they are Composables
         // composable(Screen.EditProfile.route) { /* EditProfileScreen(navController) */ }
@@ -70,20 +81,16 @@ fun NavGraph(navController: NavHostController) {
                 // defaultValue = "" // Can set a default if needed
             })
         ) { backStackEntry ->
-            // Retrieve the argument value from the backStackEntry
-            val listId = backStackEntry.arguments?.getString(Screen.ListDetail.ARG_LIST_ID) ?: ""
-            // Check if listId is valid before navigating or showing the screen
-            if (listId.isNotEmpty()) {
-                // Call your ListDetailScreen composable, passing the required arguments
-                // Replace ListDetailScreen with your actual composable name if different
-                // ListDetailScreen(navController = navController, listId = listId)
-                // Placeholder Text until ListDetailScreen composable exists:
-                androidx.compose.material3.Text("Showing List Detail for ID: $listId")
-            } else {
-                // Handle error: listId was missing or invalid
-                androidx.compose.material3.Text("Error: Missing List ID")
-                // Optionally navigate back or show an error message
-            }
+            // ViewModel will get listId from SavedStateHandle now
+            ListDetailScreen(navController = navController) // Call the new screen
+        }
+        composable(
+            route = Screen.SearchPlaces.routeWithArg, // Use route with arg
+            arguments = listOf(navArgument(Screen.SearchPlaces.ARG_LIST_ID) { // Define arg
+                type = NavType.StringType
+            })
+        ) { // ViewModel gets listId from SavedStateHandle
+            SearchPlacesScreen(navController = navController) // Call the new screen
         }
         // --- END ListDetail Composable Route ---
     } // End NavHost

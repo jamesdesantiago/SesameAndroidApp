@@ -1,10 +1,12 @@
-// app/src/main/java/com/gazzel/sesameapp/di/NetworkModule.kt
+// File: app/src/main/java/com/gazzel/sesameapp/di/NetworkModule.kt
 package com.gazzel.sesameapp.di
 
-import com.gazzel.sesameapp.data.remote.UserApiService
-import com.gazzel.sesameapp.data.service.AppListService // Import the new service
-import com.gazzel.sesameapp.data.service.GooglePlacesService // Keep if used
-import com.gazzel.sesameapp.data.service.UserProfileService
+// --- Consolidated & Current Services ---
+import com.gazzel.sesameapp.data.service.ListApiService // The new consolidated service
+import com.gazzel.sesameapp.data.remote.UserApiService // Keep for now, will consolidate User services next
+import com.gazzel.sesameapp.data.service.GooglePlacesService // For Google Places
+
+// --- Hilt, OkHttp, Retrofit ---
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,7 +19,10 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
 
-// Define qualifier names as constants
+// --- Optional: Security Interceptor ---
+// import com.gazzel.sesameapp.data.network.SecurityInterceptor // Uncomment if you have this and want to use it
+
+// Define qualifier names as constants (can be in a separate file or here)
 const val GAZEL_RETROFIT = "GazelRetrofit"
 const val GOOGLE_PLACES_RETROFIT = "GooglePlacesRetrofit"
 
@@ -27,66 +32,84 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideOkHttpClient(
+        // Inject SecurityInterceptor if you plan to use it
+        // securityInterceptor: SecurityInterceptor
+    ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(HttpLoggingInterceptor().apply {
+                // Use BODY for development/debugging, change to NONE for release builds
                 level = HttpLoggingInterceptor.Level.BODY
             })
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            // Uncomment the line below to add the security interceptor
+            // .addInterceptor(securityInterceptor)
+            .connectTimeout(15, TimeUnit.SECONDS) // Reasonable timeouts
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
             .build()
     }
 
-    // Provide Retrofit instance for your backend API
+    /**
+     * Provides the Retrofit instance configured for your Gazel backend API.
+     */
     @Provides
     @Singleton
-    @Named(GAZEL_RETROFIT) // <-- Add qualifier
-    fun provideGazelRetrofit(okHttpClient: OkHttpClient): Retrofit { // Renamed for clarity
+    @Named(GAZEL_RETROFIT) // Qualifier for your backend
+    fun provideGazelRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://gazzel.io/") // Your FastAPI base URL
+            // Replace with your actual backend base URL
+            .baseUrl("https://gazzel.io/")
             .client(okHttpClient)
+            // Using Gson, ensure your DTOs work well with it (or use Moshi/Kotlinx.Serialization)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
 
-    // Provide Retrofit instance for Google Places API
+    /**
+     * Provides the Retrofit instance configured for the Google Places API.
+     */
     @Provides
     @Singleton
-    @Named(GOOGLE_PLACES_RETROFIT) // <-- Add qualifier
+    @Named(GOOGLE_PLACES_RETROFIT) // Qualifier for Google Places
     fun provideGooglePlacesRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://places.googleapis.com/") // Google Places base URL
-            .client(okHttpClient) // Can reuse OkHttpClient
+            // Standard Google Places API base URL
+            .baseUrl("https://places.googleapis.com/")
+            .client(okHttpClient) // Can reuse the same OkHttpClient
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
 
+    // --- API Service Providers ---
+
+    /**
+     * Provides the consolidated ListApiService using the Gazel backend Retrofit instance.
+     */
+    @Provides
+    @Singleton
+    fun provideListApiService(@Named(GAZEL_RETROFIT) retrofit: Retrofit): ListApiService {
+        return retrofit.create(ListApiService::class.java)
+    }
+
+    /**
+     * Provides the UserApiService using the Gazel backend Retrofit instance.
+     * Note: This interface might also need consolidation later.
+     */
     @Provides
     @Singleton
     fun provideUserApiService(@Named(GAZEL_RETROFIT) retrofit: Retrofit): UserApiService {
         return retrofit.create(UserApiService::class.java)
     }
 
-    @Provides
-    @Singleton
-    fun provideAppListService(@Named(GAZEL_RETROFIT) retrofit: Retrofit): AppListService {
-        return retrofit.create(AppListService::class.java)
-    }
-
+    /**
+     * Provides the GooglePlacesService using the Google Places Retrofit instance.
+     */
     @Provides
     @Singleton
     fun provideGooglePlacesService(@Named(GOOGLE_PLACES_RETROFIT) retrofit: Retrofit): GooglePlacesService {
         return retrofit.create(GooglePlacesService::class.java)
     }
 
-    // ADDED: Provider for UserProfileService
-    @Provides
-    @Singleton
-    fun provideUserProfileService(@Named(GAZEL_RETROFIT) retrofit: Retrofit): UserProfileService {
-        // Use the Retrofit instance configured for your gazel.io backend
-        return retrofit.create(UserProfileService::class.java)
-    }
-
-    // REMOVED providers for the old ListService and UserListService if they were separate
+    // --- NO PROVIDERS FOR AppListService, ListService, UserListService ---
+    // These interfaces should be deleted as they are now replaced by ListApiService.
 }

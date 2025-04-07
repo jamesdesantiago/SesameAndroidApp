@@ -58,31 +58,12 @@ fun FriendsScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Friends") }
-            )
-        },
+        topBar = { /* ... TopAppBar ... */ },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = false,
-                    onClick = { navController.navigate(Screen.Home.route) }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.List, contentDescription = "Lists") },
-                    label = { Text("Lists") },
-                    selected = false,
-                    onClick = { navController.navigate(Screen.Lists.route) }
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Friends") },
-                    label = { Text("Friends") },
-                    selected = true,
-                    onClick = { }
-                )
+                NavigationBarItem( /* Home */ selected = false, onClick = { navController.navigate(Screen.Home.route) } )
+                NavigationBarItem( /* Lists */ selected = false, onClick = { navController.navigate(Screen.Lists.route) } )
+                NavigationBarItem( /* Friends */ selected = true, onClick = { } )
             }
         }
     ) { paddingValues ->
@@ -91,12 +72,12 @@ fun FriendsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search bar
+            // Search bar (unchanged, interacts with viewModel.searchFriends)
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { 
+                onValueChange = {
                     searchQuery = it
-                    viewModel.searchFriends(it)
+                    viewModel.searchFriends(it) // ViewModel handles search logic
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,7 +87,7 @@ fun FriendsScreen(
                 singleLine = true
             )
 
-            when (uiState) {
+            when (val state = uiState) {
                 is FriendsUiState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -129,7 +110,17 @@ fun FriendsScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(friends) { friend ->
-                                FriendItem(friend = friend)
+                                // Pass follow/unfollow actions to ViewModel
+                                FriendItem(
+                                    friend = friend,
+                                    onFollowClick = { isFollowing -> // Lambda parameter indicating current status
+                                        if (isFollowing) {
+                                            viewModel.unfollowUser(friend.id)
+                                        } else {
+                                            viewModel.followUser(friend.id)
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -151,7 +142,10 @@ fun FriendsScreen(
 }
 
 @Composable
-private fun FriendItem(friend: Friend) {
+private fun FriendItem(
+    friend: Friend,
+    onFollowClick: (isFollowing: Boolean) -> Unit // Modified lambda
+) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -199,7 +193,7 @@ private fun FriendItem(friend: Friend) {
 
             // Follow button
             Button(
-                onClick = { /* TODO: Implement follow/unfollow */ },
+                onClick = { onFollowClick(friend.isFollowing) },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (friend.isFollowing) 
                         MaterialTheme.colorScheme.surfaceVariant 

@@ -1,5 +1,6 @@
 package com.gazzel.sesameapp.presentation.screens.lists
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,8 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.presentation.navigation.Screen
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateListScreen(
     navController: NavController,
@@ -51,7 +51,7 @@ fun CreateListScreen(
             TopAppBar(
                 title = { Text("Create New List") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = { navController.navigateUp() }) { // Use navigateUp
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -61,8 +61,8 @@ fun CreateListScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .padding(paddingValues) // Apply padding from Scaffold
+                .padding(16.dp),       // Apply screen-specific padding
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             OutlinedTextField(
@@ -130,7 +130,24 @@ fun CreateListScreen(
 
     LaunchedEffect(uiState) {
         if (uiState is CreateListUiState.Success) {
-            navController.navigateUp()
+            // **IMPORTANT**: You need the ID of the newly created list here.
+            // The CreateListUiState.Success should ideally contain the new list or its ID.
+            // Let's assume the ViewModel updates the state with the ID upon success.
+            // We'll modify the CreateListViewModel and State for this.
+
+            val newListId = (uiState as CreateListUiState.Success).newListId // Assume this exists now
+            if (newListId != null) {
+                // Navigate to SearchPlaces, passing the new list ID
+                navController.navigate(Screen.SearchPlaces.createRoute(newListId)) {
+                    // Optional: pop CreateListScreen off the back stack
+                    popUpTo(Screen.CreateList.route) { inclusive = true }
+                }
+            } else {
+                // Handle case where ID is missing after creation (error)
+                Log.e("CreateListScreen", "List created but ID is missing.")
+                navController.popBackStack() // Go back anyway
+            }
+            // Reset VM state if needed viewModel.resetState()
         }
     }
 } 

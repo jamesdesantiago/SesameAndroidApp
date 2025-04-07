@@ -1,157 +1,60 @@
-package com.gazzel.sesameapp.presentation.screens
+// presentation/screens/SearchPlacesScreen.kt --> RENAME to presentation/screens/search/SearchPlacesScreen.kt
+package com.gazzel.sesameapp.presentation.screens.search // Adjust package
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.* // Import layout components
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.* // Import Material 3 components
+import androidx.compose.runtime.* // Import Compose runtime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.gazzel.sesameapp.data.service.AutocompleteRequest
-import com.gazzel.sesameapp.data.service.GooglePlacesService
+import androidx.hilt.navigation.compose.hiltViewModel // Import Hilt VM
+import androidx.navigation.NavController // Import NavController
 import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
 import com.gazzel.sesameapp.data.service.PlacePrediction
-import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.util.UUID
-
-// Step-tracking enum for multi-step overlay
-enum class OverlayStep {
-    Hidden,            // overlay not visible
-    ShowPlaceDetails,  // Step 1: place info + "Add" (no skip/cancel)
-    AskVisitOrNot,     // Step 2: "Visited" / "Want to Visit" / "Skip"
-    AskRating          // Step 3: "Worth Visiting", "Must Visit", "Not Worth Visiting", "Skip"
-}
+import com.gazzel.sesameapp.ui.theme.SesameAppTheme // Import your theme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchPlacesScreen(
-    onSkip: () -> Unit,
-    // Expect PlaceDetailsResponse from Google API
-    onPlaceSelected: (placeDetails: PlaceDetailsResponse, userRating: String?, visitStatus: String?) -> Unit,
-    // Use the correct service type
-    googlePlacesService: GooglePlacesService,
-    apiKey: String
+    navController: NavController,
+    viewModel: SearchPlacesViewModel = hiltViewModel() // Inject ViewModel
 ) {
-    // ------------------ State vars ------------------
-    var query by remember { mutableStateOf("") }
-    // Explicitly type the list state
-    val suggestions = remember { mutableStateListOf<PlacePrediction>() }
-    var isLoading by remember { mutableStateOf(false) }
-    var isDetailLoading by remember { mutableStateOf(false) } // Separate loading for details
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    val sessionToken by remember { mutableStateOf(UUID.randomUUID().toString()) } // Reuse session token
-    val coroutineScope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsState()
+    val overlayStep by viewModel.overlayStep.collectAsState()
+    var query by remember { mutableStateOf("") } // Local state for TextField binding
 
-    var selectedPlace by remember { mutableStateOf<PlaceDetailsResponse?>(null) }
-    var userRating by remember { mutableStateOf<String?>(null) }
-    var visitStatus by remember { mutableStateOf<String?>(null) }
-    var overlayStep by remember { mutableStateOf(OverlayStep.Hidden) }
-
-    // --- Autocomplete API Call ---
-    LaunchedEffect(query) {
-        // Basic debounce and length check
-        if (query.length < 3) {
-            suggestions.clear()
-            errorMessage = null // Clear error on short query
-            return@LaunchedEffect
-        }
-        delay(500) // Wait 500ms after user stops typing
-        isLoading = true
-        errorMessage = null // Clear previous error
-        try {
-            val request = AutocompleteRequest(input = query, sessionToken = sessionToken)
-            val response = googlePlacesService.getAutocompleteSuggestions(request, apiKey)
-
-            if (response.isSuccessful) {
-                suggestions.clear()
-                response.body()?.suggestions?.let { newSuggestions ->
-                    // Extract the PlacePrediction part
-                    suggestions.addAll(newSuggestions.map { it.placePrediction })
-                }
-                Log.d("SearchPlacesScreen", "Autocomplete success: ${suggestions.size} results")
-            } else {
-                errorMessage = "Autocomplete failed: ${response.code()} ${response.message()}"
-                Log.e("SearchPlacesScreen", "Autocomplete error: ${response.code()} - ${response.errorBody()?.string()}")
-                suggestions.clear()
-            }
-        } catch (e: Exception) {
-            errorMessage = "Autocomplete error: ${e.localizedMessage ?: "Unknown error"}"
-            Log.e("SearchPlacesScreen", "Autocomplete exception", e)
-            suggestions.clear()
-        } finally {
-            isLoading = false
+    // Navigate back when PlaceAdded state is reached
+    LaunchedEffect(uiState) {
+        if (uiState is SearchPlacesUiState.PlaceAdded) {
+            // Optionally show a success message (e.g., Snackbar)
+            navController.popBackStack()
         }
     }
 
-    // --- Function to Fetch Place Details ---
-    suspend fun fetchPlaceDetails(placeId: String, callback: (PlaceDetailsResponse?) -> Unit) {
-        isDetailLoading = true // Use separate loading state for detail fetch
-        errorMessage = null
-        try {
-            // Specify fields needed: id,displayName,formattedAddress,location,rating (optional)
-            val fields = "id,displayName,formattedAddress,location,rating"
-            val response = googlePlacesService.getPlaceDetails(placeId, apiKey, fields)
-            if (response.isSuccessful) {
-                callback(response.body())
-            } else {
-                errorMessage = "Failed to get place details: ${response.code()} ${response.message()}"
-                Log.e("SearchPlacesScreen", "GetDetails error: ${response.code()} - ${response.errorBody()?.string()}")
-                callback(null)
-            }
-        } catch (e: Exception) {
-            errorMessage = "Details error: ${e.localizedMessage ?: "Unknown error"}"
-            Log.e("SearchPlacesScreen", "GetDetails exception", e)
-            callback(null)
-        } finally {
-            isDetailLoading = false
-        }
-    }
-
-    fun finalizePlaceAddition() { // Keep helper function
-        selectedPlace?.let { place ->
-            onPlaceSelected(place, userRating, visitStatus)
-        }
-        overlayStep = OverlayStep.Hidden
-        selectedPlace = null
-        userRating = null
-        visitStatus = null
-    }
-
-
-    // ------------------ UI ------------------
     SesameAppTheme {
         Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold( /* ... TopBar ... */ ) { innerPadding ->
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Add Place to List") },
+                        navigationIcon = {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        }
+                    )
+                }
+            ) { innerPadding ->
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -159,131 +62,198 @@ fun SearchPlacesScreen(
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Search field (unchanged)
                     OutlinedTextField(
-                        value = query, // Use the 'query' state variable
-                        onValueChange = { query = it }, // Update 'query' when text changes
-                        label = { Text("Search for a place...") }, // Add a label
-                        modifier = Modifier.fillMaxWidth(), // Make it fill the width
-                        singleLine = true, // Often useful for search bars
-                        // Optional: Add keyboard options, icons, etc.
-                        // keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        // keyboardActions = KeyboardActions(onSearch = { /* Handle search action */ }),
-                        // leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") }
+                        value = query,
+                        onValueChange = {
+                            query = it // Update local state for TextField
+                            viewModel.updateQuery(it) // Trigger VM logic
+                        },
+                        label = { Text("Search for a place...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = uiState !is SearchPlacesUiState.AddingPlace // Disable while adding
                     )
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // Loading indicator (Show for autocomplete OR detail loading)
-                    if (isLoading || isDetailLoading) {
-                        CircularProgressIndicator(/* ... */)
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-
-                    // Suggestions List
-                    // Use the correctly typed 'suggestions' list
-                    if (suggestions.isNotEmpty() && !isLoading && !isDetailLoading) {
-                        // Access .size correctly
-                        Text(text = "${suggestions.size} results found", /* ... */)
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            // Iterate over PlacePrediction list
-                            items(suggestions, key = { it.placeId }) { prediction: PlacePrediction ->
-                                Card(/* ... */) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { // Keep clickable
-                                                query = prediction.text.text // Update query display
-                                                suggestions.clear() // Clear suggestions on click
-                                                coroutineScope.launch {
-                                                    // Call the implemented function
-                                                    fetchPlaceDetails(prediction.placeId) { placeDetailsResponse ->
-                                                        if (placeDetailsResponse != null) {
-                                                            // Assign PlaceDetailsResponse? to selectedPlace
-                                                            selectedPlace = placeDetailsResponse
-                                                            userRating = null
-                                                            visitStatus = null
-                                                            overlayStep = OverlayStep.ShowPlaceDetails
-                                                        } else {
-                                                            // Error message is already set inside fetchPlaceDetails
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            .padding(16.dp)
-                                    ) {
-                                        // Access prediction.text.text correctly
-                                        Text(text = prediction.text.text, /* ... */)
+                    // --- Handle Different UI States ---
+                    when (val state = uiState) {
+                        is SearchPlacesUiState.Idle -> {
+                            // Show placeholder or prompt
+                            Text("Start typing to search for places.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        is SearchPlacesUiState.Searching -> {
+                            // Show loading indicator while searching
+                            CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
+                            Text("Searching...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        is SearchPlacesUiState.SuggestionsLoaded -> {
+                            if (state.suggestions.isEmpty()) {
+                                Text("No suggestions found for \"${state.query}\".", style = MaterialTheme.typography.bodyMedium)
+                            } else {
+                                Text("${state.suggestions.size} suggestions found:", style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LazyColumn(modifier = Modifier.weight(1f)) {
+                                    items(state.suggestions, key = { it.placeId }) { prediction ->
+                                        SuggestionItem(prediction = prediction) {
+                                            query = prediction.text.text // Update text field on click
+                                            viewModel.selectPlace(prediction) // Trigger detail fetch
+                                        }
                                     }
                                 }
                             }
                         }
-                        // Handle 'No results' case correctly
-                    } else if (!isLoading && !isDetailLoading && query.length > 2 && suggestions.isEmpty() && errorMessage == null) {
-                        Text(text = "No results found", /* ... */)
+                        is SearchPlacesUiState.LoadingDetails -> {
+                            CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
+                            Text("Loading details for ${state.placeName ?: "place"}...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        is SearchPlacesUiState.DetailsLoaded -> {
+                            // Details are loaded, waiting for overlay interaction
+                            Text("Selected: ${state.placeDetails.displayName.text}", style = MaterialTheme.typography.bodyLarge)
+                            Text(state.placeDetails.formattedAddress, style = MaterialTheme.typography.bodyMedium)
+                            // Overlay will handle the next steps
+                        }
+                        is SearchPlacesUiState.AddingPlace -> {
+                            CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
+                            Text("Adding ${state.placeDetails.displayName.text} to list...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        is SearchPlacesUiState.PlaceAdded -> {
+                            // Usually handled by LaunchedEffect navigation, but can show temporary text
+                            Text("Place Added!", style = MaterialTheme.typography.bodyLarge, color = Color.Green) // Example color
+                        }
+                        is SearchPlacesUiState.Error -> {
+                            Text(
+                                text = state.message,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(vertical = 20.dp)
+                            )
+                            Button(onClick = { viewModel.clearError() }) { // Add retry/dismiss
+                                Text("Dismiss")
+                            }
+                        }
+                    } // End when(state)
+
+                    Spacer(modifier = Modifier.weight(1f)) // Push skip button down
+
+                    // Skip button (visible unless place is being added)
+                    AnimatedVisibility(visible = uiState !is SearchPlacesUiState.AddingPlace && overlayStep == OverlayStep.Hidden) {
+                        Button(
+                            onClick = { navController.popBackStack() }, // Just go back if skipped
+                            modifier = Modifier.fillMaxWidth().padding(top=16.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp) // Optional flat look
+                        ) {
+                            Text("Skip Adding Place")
+                        }
                     }
 
-                    // Error display (unchanged)
-                    errorMessage?.let { /* ... */ }
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // Skip button (unchanged)
-                    Button(onClick = onSkip, /* ... */) { Text("Skip", /* ... */) }
-                }
+                } // End Column
             } // End Scaffold
 
-            // --- Overlay Logic ---
-            // Add your AnimatedVisibility and overlay steps here, using 'selectedPlace'
+            // --- Overlay Visibility and Content ---
             AnimatedVisibility(
-                visible = (overlayStep != OverlayStep.Hidden && selectedPlace != null),
-                // ... rest of AnimatedVisibility ...
+                visible = overlayStep != OverlayStep.Hidden && (uiState is SearchPlacesUiState.DetailsLoaded || uiState is SearchPlacesUiState.AddingPlace) ,
+                enter = fadeIn(),
+                exit = fadeOut()
             ) {
-                Surface( /* ... Overlay background ... */ ) {
-                    Column( /* ... Overlay content ... */ ) {
-                        // --- Step 1: Show Details + Add ---
-                        if (overlayStep == OverlayStep.ShowPlaceDetails) {
-                            Text(selectedPlace!!.displayName.text, style = MaterialTheme.typography.titleMedium)
-                            Text(selectedPlace!!.formattedAddress, style = MaterialTheme.typography.bodyMedium)
-                            // Rating from Google (optional display)
-                            selectedPlace!!.rating?.let { googleRating ->
-                                Text("Google Rating: ${String.format("%.1f", googleRating)}", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { overlayStep = OverlayStep.AskVisitOrNot }) {
-                                Text("Add this place")
-                            }
-                            // No skip/cancel here as per requirement
-                        }
+                // Get details ONLY if in the correct state to avoid crashes
+                val details = (uiState as? SearchPlacesUiState.DetailsLoaded)?.placeDetails
+                    ?: (uiState as? SearchPlacesUiState.AddingPlace)?.placeDetails
 
-                        // --- Step 2: Visited / Want to Visit ---
-                        if (overlayStep == OverlayStep.AskVisitOrNot) {
-                            Text("Have you been here?", style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()){
-                                Button(onClick = { visitStatus = "VISITED"; overlayStep = OverlayStep.AskRating }) { Text("Yes, Visited") }
-                                Button(onClick = { visitStatus = "WANT_TO_VISIT"; overlayStep = OverlayStep.AskRating }) { Text("Want to Visit") }
-                            }
-                            TextButton(onClick = { visitStatus = null; overlayStep = OverlayStep.AskRating }) { Text("Skip") } // Skip setting visit status
-                        }
-
-                        // --- Step 3: Rating ---
-                        if (overlayStep == OverlayStep.AskRating) {
-                            Text("How would you rate it?", style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()){
-                                Button(onClick = { userRating = "MUST_VISIT"; finalizePlaceAddition() }) { Text("Must Visit!") }
-                                Button(onClick = { userRating = "WORTH_VISITING"; finalizePlaceAddition() }) { Text("Worth Visiting") }
-                            }
-                            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()){
-                                Button(onClick = { userRating = "NOT_WORTH_VISITING"; finalizePlaceAddition() }) { Text("Not Worth Visiting") }
-                                TextButton(onClick = { userRating = null; finalizePlaceAddition() }) { Text("Skip Rating") }
-                            }
-                        }
-                    }
+                if (details != null) {
+                    SearchPlacesOverlay(
+                        step = overlayStep,
+                        placeDetails = details,
+                        onVisitStatusSelected = { status -> viewModel.setVisitStatusAndProceed(status) },
+                        onRatingSelected = { rating -> viewModel.setRatingAndAddPlace(rating) },
+                        onDismiss = { viewModel.resetOverlayState() } // Action to hide overlay
+                    )
                 }
-            } // End AnimatedVisibility
+            } // End AnimatedVisibility for Overlay
 
         } // End Outer Box
     } // End SesameAppTheme
 } // End SearchPlacesScreen
+
+// --- Helper Composables ---
+
+@Composable
+fun SuggestionItem(prediction: PlacePrediction, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Text(
+            text = prediction.text.text,
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+@Composable
+fun SearchPlacesOverlay(
+    step: OverlayStep,
+    placeDetails: PlaceDetailsResponse,
+    onVisitStatusSelected: (status: String?) -> Unit,
+    onRatingSelected: (rating: String?) -> Unit,
+    onDismiss: () -> Unit // To close the overlay
+) {
+    // Scrim background to dim the underlying screen
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable(onClick = onDismiss), // Dismiss on scrim click
+        contentAlignment = Alignment.BottomCenter // Align card to bottom
+    ) {
+        // Prevent clicks on the card from propagating to the scrim
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = false) {} // Block clicks
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.large,
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // --- Content based on OverlayStep ---
+                when (step) {
+                    OverlayStep.ShowPlaceDetails -> { // Changed from AskVisitOrNot trigger
+                        Text(placeDetails.displayName.text, style = MaterialTheme.typography.titleMedium)
+                        Text(placeDetails.formattedAddress, style = MaterialTheme.typography.bodyMedium)
+                        placeDetails.rating?.let { googleRating ->
+                            Text("Google Rating: ${String.format("%.1f", googleRating)}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // Button moved out, triggered by VM now
+                    }
+                    OverlayStep.AskVisitOrNot -> {
+                        Text("Have you been here?", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()){
+                            Button(onClick = { onVisitStatusSelected("VISITED") }, modifier = Modifier.weight(1f)) { Text("Yes, Visited") }
+                            Button(onClick = { onVisitStatusSelected("WANT_TO_VISIT") }, modifier = Modifier.weight(1f)) { Text("Want to Visit") }
+                        }
+                        TextButton(onClick = { onVisitStatusSelected(null) }) { Text("Skip this step") }
+                    }
+                    OverlayStep.AskRating -> {
+                        Text("How would you rate it?", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { // Use Column for better layout
+                            Button(onClick = { onRatingSelected("MUST_VISIT") }, modifier = Modifier.fillMaxWidth()) { Text("⭐ Must Visit!") }
+                            Button(onClick = { onRatingSelected("WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) { Text("👍 Worth Visiting") }
+                            Button(onClick = { onRatingSelected("NOT_WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) { Text("👎 Not Worth Visiting") }
+                            TextButton(onClick = { onRatingSelected(null) }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Skip Rating") }
+                        }
+                    }
+                    else -> {} // Hidden state, should not show overlay content
+                } // End when(step)
+            } // End Column
+        } // End Card
+    } // End Box (Scrim)
+}
