@@ -6,11 +6,11 @@ import com.google.android.gms.maps.model.LatLng
 import retrofit2.Response
 import com.gazzel.sesameapp.data.local.dao.PlaceDao
 import com.gazzel.sesameapp.data.local.entity.PlaceEntity
-import com.gazzel.sesameapp.data.service.ListApiService
+import com.gazzel.sesameapp.data.remote.ListApiService
 import com.gazzel.sesameapp.data.remote.dto.PlaceCreateDto
 import com.gazzel.sesameapp.data.remote.dto.PlaceUpdateDto
-import com.gazzel.sesameapp.data.model.ListDto
-import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.remote.dto.ListDto
+import com.gazzel.sesameapp.data.remote.dto.PlaceDto
 // Import Domain models
 import com.gazzel.sesameapp.domain.model.Place // Keep for detailed methods interface contract
 import com.gazzel.sesameapp.domain.model.PlaceItem // Primary model for implementation
@@ -25,10 +25,8 @@ import com.gazzel.sesameapp.domain.util.map // Add map import
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map as flowMap // Alias flow's map to avoid clash
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 

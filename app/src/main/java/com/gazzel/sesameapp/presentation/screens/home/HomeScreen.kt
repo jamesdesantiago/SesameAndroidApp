@@ -164,7 +164,7 @@ fun HomeScreen(
                             icon = Icons.Default.Add,
                             label = "New List",
                             onClick = {
-                                context.startActivity(Intent(context, CreateListActivity::class.java)) // Launch Activity
+                                navController.navigate(Screen.CreateList.route)
                             }
                         )
                         QuickActionButton(

@@ -38,7 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
-import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.remote.dto.PlaceDto
 import com.gazzel.sesameapp.data.service.ListService
 import com.gazzel.sesameapp.domain.model.ListResponse
 import com.gazzel.sesameapp.domain.model.PlaceItem

@@ -3,8 +3,8 @@ package com.gazzel.sesameapp.data.mapper
 
 // Import Data layer models
 import com.gazzel.sesameapp.data.local.entity.PlaceEntity
-import com.gazzel.sesameapp.data.model.OpeningHoursDto
-import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.remote.dto.OpeningHoursDto
+import com.gazzel.sesameapp.data.remote.dto.PlaceDto
 // Import Domain layer models
 import com.gazzel.sesameapp.domain.model.OpeningHours
 import com.gazzel.sesameapp.domain.model.Place // Detailed domain model

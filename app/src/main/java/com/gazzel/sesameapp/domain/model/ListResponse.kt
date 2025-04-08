@@ -1,6 +1,6 @@
 package com.gazzel.sesameapp.domain.model
 
-import com.gazzel.sesameapp.data.model.PlaceDto
+import com.gazzel.sesameapp.data.remote.dto.PlaceDto
 
 data class ListResponse(
     val id: String,

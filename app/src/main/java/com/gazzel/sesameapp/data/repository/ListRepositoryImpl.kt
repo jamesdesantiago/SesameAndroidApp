@@ -2,14 +2,12 @@
 package com.gazzel.sesameapp.data.repository
 
 // Import the CORRECT consolidated service
-import com.gazzel.sesameapp.data.service.ListApiService // <<< CHANGE
+import com.gazzel.sesameapp.data.remote.ListApiService // <<< CHANGE
 
 // Import specific DTOs needed for requests
-import com.gazzel.sesameapp.data.remote.dto.ListCreateDto
-import com.gazzel.sesameapp.data.remote.dto.ListUpdateDto
 
 // Import specific response DTOs
-import com.gazzel.sesameapp.data.model.ListDto // <<< CHANGE (Assuming this is the response DTO used by ListApiService)
+import com.gazzel.sesameapp.data.remote.dto.ListDto // <<< CHANGE (Assuming this is the response DTO used by ListApiService)
 
 // Import domain models
 import com.gazzel.sesameapp.domain.model.SesameList
@@ -24,9 +22,6 @@ import com.gazzel.sesameapp.domain.auth.TokenProvider // <<< ADD for proper toke
 import com.gazzel.sesameapp.domain.exception.AppException
 import com.gazzel.sesameapp.domain.repository.ListRepository
 import com.gazzel.sesameapp.domain.util.Result
-import com.gazzel.sesameapp.domain.util.map
-import com.gazzel.sesameapp.domain.util.onError
-import com.gazzel.sesameapp.domain.util.onSuccess
 import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Singleton

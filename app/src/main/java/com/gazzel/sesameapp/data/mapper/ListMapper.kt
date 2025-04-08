@@ -44,6 +44,6 @@ fun SesameList.toServiceUpdateDto(): ServiceListUpdate {
 }
 
 // Add PlaceDto -> PlaceItem mapping if needed and not present elsewhere
-// import com.gazzel.sesameapp.data.model.PlaceDto
+// import com.gazzel.sesameapp.data.remote.dto.PlaceDto
 // import com.gazzel.sesameapp.domain.model.PlaceItem
 // fun PlaceDto.toPlaceItem(listId: String): PlaceItem { ... }
