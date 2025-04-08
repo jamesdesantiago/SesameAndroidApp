@@ -1,69 +1,60 @@
+// app/src/main/java/com/gazzel/sesameapp/data/mapper/PlaceMapper.kt
 package com.gazzel.sesameapp.data.mapper
 
-// Keep this import ONLY if you need to CREATE Timestamps when converting FROM domain Date
-// import com.google.firebase.Timestamp
+// Import Data layer models
+import com.gazzel.sesameapp.data.local.entity.PlaceEntity
 import com.gazzel.sesameapp.data.model.OpeningHoursDto
 import com.gazzel.sesameapp.data.model.PlaceDto
+// Import Domain layer models
 import com.gazzel.sesameapp.domain.model.OpeningHours
-import com.gazzel.sesameapp.domain.model.Place
+import com.gazzel.sesameapp.domain.model.Place // Detailed domain model
+import com.gazzel.sesameapp.domain.model.PlaceItem // List item domain model
+// Other imports
 import com.google.android.gms.maps.model.LatLng
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-// --- Date Formatting ---
-// Define standard formatters (adjust format string if your API uses a different one)
-// ISO 8601 format often used in APIs
+// --- Date Formatting Helpers (Keep as is) ---
 private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
     timeZone = TimeZone.getTimeZone("UTC")
 }
-// You might need another format if your API is different
-
-// Helper function to parse String? to Date? safely
 private fun String?.parseIsoDate(): Date? {
-    return this?.let {
-        try {
-            isoFormat.parse(it)
-        } catch (e: Exception) {
-            null // Return null if parsing fails
-        }
-    }
+    return this?.let { try { isoFormat.parse(it) } catch (e: Exception) { null } }
 }
-
-// Helper function to format Date? to String? safely
 private fun Date?.formatIsoDate(): String? {
     return this?.let { isoFormat.format(it) }
 }
 
+// ==================================================
+// Mappings for Detailed Domain Model: Place
+// ==================================================
 
-// Maps PlaceDto (Data Layer - String? rating, String? timestamps)
-// to Place (Domain - String? rating, Date timestamps)
-fun PlaceDto.toDomain(): Place {
+// Maps PlaceDto (Data Layer DTO, assumes detailed structure) -> Place (Domain Layer, detailed)
+fun PlaceDto.toDomainPlace(): Place { // Renamed for clarity
+    // This mapping assumes PlaceDto contains fields for the detailed Place model
     return Place(
         id = this.id,
         name = this.name,
         description = this.description,
         address = this.address,
         location = LatLng(this.latitude, this.longitude),
-        rating = this.rating, // Direct assignment String? -> String?
+        rating = this.rating, // String? -> String?
         photoUrl = this.photoUrl,
         websiteUrl = this.websiteUrl,
         phoneNumber = this.phoneNumber,
-        openingHours = this.openingHours?.map { it.toDomain() },
+        openingHours = this.openingHours?.map { it.toDomainOpeningHours() }, // Use specific mapper name
         types = this.types,
         priceLevel = this.priceLevel,
-        // Parse the String? from DTO into Date? (handle null/errors)
-        // Provide a default Date if parsing fails or DTO field is null
-        createdAt = this.createdAt.parseIsoDate() ?: Date(0), // Default to epoch if null/invalid
-        updatedAt = this.updatedAt.parseIsoDate() ?: Date(0)  // Default to epoch if null/invalid
-        // Or throw an exception if timestamps are mandatory? Depends on requirements.
+        // Parse timestamps based on DTO format (assuming String? here)
+        createdAt = this.createdAt.parseIsoDate() ?: Date(0),
+        updatedAt = this.updatedAt.parseIsoDate() ?: Date(0)
     )
 }
 
-// Maps Place (Domain - String? rating, Date timestamps)
-// to PlaceDto (Data Layer - String? rating, String? timestamps)
-fun Place.toDto(): PlaceDto {
+// Maps Place (Domain Layer, detailed) -> PlaceDto (Data Layer DTO, assumes detailed structure)
+fun Place.toPlaceDto(): PlaceDto { // Renamed for clarity
     return PlaceDto(
         id = this.id,
         name = this.name,
@@ -71,25 +62,23 @@ fun Place.toDto(): PlaceDto {
         address = this.address,
         latitude = this.location.latitude,
         longitude = this.location.longitude,
-        rating = this.rating, // Direct assignment String? -> String?
+        rating = this.rating, // String? -> String?
         photoUrl = this.photoUrl,
         websiteUrl = this.websiteUrl,
         phoneNumber = this.phoneNumber,
-        openingHours = this.openingHours?.map { it.toDto() },
+        openingHours = this.openingHours?.map { it.toOpeningHoursDto() }, // Use specific mapper name
         types = this.types,
         priceLevel = this.priceLevel,
-        // Format the Date from domain model into String? for DTO
+        // Format timestamps based on DTO format (assuming String? here)
         createdAt = this.createdAt.formatIsoDate(),
         updatedAt = this.updatedAt.formatIsoDate()
-        // DO NOT create new Firestore Timestamps here if PlaceDto expects String/Long
-        // createdAt = Timestamp(this.createdAt), // REMOVE/REPLACE
-        // updatedAt = Timestamp(this.updatedAt)   // REMOVE/REPLACE
     )
 }
 
-// --- Opening Hours Mapping (Should be okay) ---
+// --- Opening Hours Mapping (Used by detailed Place) ---
 
-fun OpeningHoursDto.toDomain(): OpeningHours {
+// Maps OpeningHoursDto -> OpeningHours (Domain)
+fun OpeningHoursDto.toDomainOpeningHours(): OpeningHours { // Renamed for clarity
     return OpeningHours(
         dayOfWeek = this.dayOfWeek,
         openTime = this.openTime,
@@ -98,11 +87,76 @@ fun OpeningHoursDto.toDomain(): OpeningHours {
     )
 }
 
-fun OpeningHours.toDto(): OpeningHoursDto {
+// Maps OpeningHours (Domain) -> OpeningHoursDto
+fun OpeningHours.toOpeningHoursDto(): OpeningHoursDto { // Renamed for clarity
     return OpeningHoursDto(
         dayOfWeek = this.dayOfWeek,
         openTime = this.openTime,
         closeTime = this.closeTime,
         isOpen = this.isOpen
+    )
+}
+
+
+// ==================================================
+// Mappings for List Item Domain Model: PlaceItem
+// ==================================================
+
+/**
+ * Maps a PlaceDto (typically embedded in ListDto from API) to a PlaceItem (Domain).
+ * Requires the listId to be passed in as the DTO itself doesn't contain it.
+ */
+fun PlaceDto.toDomainPlaceItem(listId: String): PlaceItem { // Added function
+    return PlaceItem(
+        id = this.id, // Use PlaceDto ID
+        name = this.name,
+        description = this.description ?: "", // Handle null description
+        address = this.address,
+        latitude = this.latitude,
+        longitude = this.longitude,
+        listId = listId, // Assign the passed-in listId
+        notes = null, // DTO likely doesn't have notes, default to null
+        rating = this.rating, // Map rating (String?) directly
+        visitStatus = null // DTO likely doesn't have visitStatus, default to null
+    )
+}
+
+/**
+ * Maps a PlaceEntity (from Room DB) to a PlaceItem (Domain).
+ */
+fun PlaceEntity.toDomainPlaceItem(): PlaceItem { // Added function
+    return PlaceItem(
+        id = this.id,
+        name = this.name,
+        description = this.description,
+        address = this.address,
+        latitude = this.latitude,
+        longitude = this.longitude,
+        listId = this.listId,
+        notes = this.notes, // Map notes from Entity
+        rating = this.rating, // Map rating from Entity (ensure type matches String?)
+        visitStatus = this.visitStatus // Map visitStatus from Entity
+    )
+}
+
+/**
+ * Maps a PlaceItem (Domain) to a PlaceEntity (for Room DB).
+ */
+fun PlaceItem.toPlaceEntity(): PlaceEntity { // Added function
+    return PlaceEntity(
+        id = this.id,
+        name = this.name,
+        description = this.description,
+        address = this.address,
+        latitude = this.latitude,
+        longitude = this.longitude,
+        listId = this.listId,
+        notes = this.notes, // Map notes to Entity
+        rating = this.rating, // Map rating (String?) to Entity
+        visitStatus = this.visitStatus, // Map visitStatus to Entity
+        // Let Room handle createdAt/updatedAt automatically on insert/update
+        // or set them explicitly if needed:
+        // createdAt = System.currentTimeMillis(), // Example for insert
+        // updatedAt = System.currentTimeMillis() // Example for insert/update
     )
 }

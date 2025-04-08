@@ -39,7 +39,7 @@ import javax.inject.Singleton
 class SecurityManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val logger: Logger
-) {
+) : ISecurityManager {
     private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     private val keyAlias = "SesameAppKey"
     private val keySize = 256
@@ -81,7 +81,7 @@ class SecurityManager @Inject constructor(
      * @return Base64 encoded string containing the IV and encrypted data
      * @throws AuthException if encryption fails
      */
-    fun encrypt(data: String): String {
+    override fun encrypt(data: String): String {
         return try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             val key = keyStore.getKey(keyAlias, null) as SecretKey
@@ -102,7 +102,7 @@ class SecurityManager @Inject constructor(
      * @return The decrypted string
      * @throws AuthException if decryption fails
      */
-    fun decrypt(encryptedData: String): String {
+    override fun decrypt(encryptedData: String): String {
         return try {
             val decoded = Base64.decode(encryptedData, Base64.DEFAULT)
             val iv = decoded.copyOfRange(0, 12)
@@ -126,7 +126,7 @@ class SecurityManager @Inject constructor(
      * @param value The value to store
      * @throws AuthException if storage fails
      */
-    fun secureStore(key: String, value: String) {
+    override fun secureStore(key: String, value: String) {
         try {
             val encryptedValue = encrypt(value)
             context.getSharedPreferences("secure_prefs", Context.MODE_PRIVATE)
@@ -145,7 +145,7 @@ class SecurityManager @Inject constructor(
      * @param key The key to retrieve
      * @return The decrypted value, or null if not found or decryption fails
      */
-    fun secureRetrieve(key: String): String? {
+    override fun secureRetrieve(key: String): String? {
         return try {
             val encryptedValue = context.getSharedPreferences("secure_prefs", Context.MODE_PRIVATE)
                 .getString(key, null)

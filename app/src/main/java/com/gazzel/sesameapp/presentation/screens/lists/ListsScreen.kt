@@ -1,180 +1,172 @@
+// app/src/main/java/com/gazzel/sesameapp/presentation/screens/lists/ListsScreen.kt
+// (Content moved from UserListsActivity and updated)
 package com.gazzel.sesameapp.presentation.screens.lists
 
-import android.content.Intent
+// Keep necessary imports, remove Activity, Intent, lifecycleScope, manual service/token imports
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.* // Import needed icons
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+// Import domain model and navigation Screen
 import com.gazzel.sesameapp.domain.model.SesameList
-import com.gazzel.sesameapp.presentation.activities.CreateListActivity
-import com.gazzel.sesameapp.presentation.activities.ListDetailsActivity
 import com.gazzel.sesameapp.presentation.navigation.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// Remove ListCache object
+// object ListCache { ... }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListsScreen(
+fun ListsScreen( // Renamed from UserListsScreen for consistency
     navController: NavController,
-    viewModel: ListsViewModel = hiltViewModel()
+    viewModel: ListsViewModel = hiltViewModel() // Inject ViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedList by remember { mutableStateOf<SesameList?>(null) }
-    val context = LocalContext.current
+    // Removed context, scope - use NavController and viewModelScope
+
+    // Fetch lists on initial composition and when lifecycle state changes (e.g., returning to screen)
+    // This replaces onResume logic
+    LaunchedEffect(Unit) { // Or use lifecycle events if needed: LocalLifecycleOwner.current.lifecycle.observe...
+        viewModel.refresh() // Load lists initially
+    }
+
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("My Lists") },
                 actions = {
-                    // Use the 'context' obtained from the parent Composable scope
                     IconButton(onClick = {
-                        context.startActivity(Intent(context, CreateListActivity::class.java))
+                        // Navigate to Composable CreateListScreen
+                        navController.navigate(Screen.CreateList.route)
                     }) {
                         Icon(Icons.Default.Add, contentDescription = "Create List")
                     }
-                    IconButton(onClick = {
-                        navController.navigate(Screen.CreateList.route) // Navigate using NavController
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create List")
-                    }
+                    // Sign out might belong in a Profile/Settings screen now
+                    // TextButton(onClick = { /* viewModel.signOut() ? */ }) { Text("Sign Out") }
                 }
             )
         },
         bottomBar = {
-            // ... (NavigationBar remains the same, ensure selected is correct) ...
             NavigationBar {
-                NavigationBarItem( /* Home */ selected = false, onClick = { navController.navigate(Screen.Home.route){/*options*/} } )
-                NavigationBarItem( /* Lists */ selected = true, onClick = {} )
-                NavigationBarItem( /* Friends */ selected = false, onClick = { navController.navigate(Screen.Friends.route){/*options*/} } )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = false, // This screen is 'Lists'
+                    onClick = { navController.navigate(Screen.Home.route) { launchSingleTop = true; popUpTo(Screen.Home.route) } }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.List, contentDescription = "Lists") },
+                    label = { Text("Lists") },
+                    selected = true, // This is the Lists screen
+                    onClick = { /* Already here */ }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Friends") },
+                    label = { Text("Friends") },
+                    selected = false,
+                    onClick = { navController.navigate(Screen.Friends.route) { launchSingleTop = true; popUpTo(Screen.Home.route) } }
+                )
             }
         }
+        // FAB removed as Add action is in TopAppBar
     ) { paddingValues ->
-        when (val state = uiState) { // Use 'state' variable for easier access
-            is ListsUiState.Loading -> {
-                // ... (Loading indicator) ...
-                Box(/*...*/) { CircularProgressIndicator() }
-            }
-            is ListsUiState.Success -> {
-                val userLists = state.userLists
-                if (userLists.isEmpty()) {
-                    // ... (EmptyListsView) ...
-                    Box(/*...*/) { EmptyListsView(modifier = Modifier.fillMaxSize()) }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
-                    ) {
-                        items(userLists, key = { list -> list.id }) { list ->
-                            ListItem(
-                                headlineContent = { /* ... */ },
-                                supportingContent = { /* ... */ },
-                                trailingContent = {
-                                    Row {
-                                        // Share button (implement if needed)
-                                        IconButton(onClick = {
-                                            selectedList = list
-                                            // Trigger share dialog or action
-                                        }) {
-                                            Icon(Icons.Filled.Share, contentDescription = "Share")
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) { // Add main content Box
+            when (val state = uiState) {
+                is ListsUiState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                is ListsUiState.Success -> {
+                    val userLists = state.userLists
+                    if (userLists.isEmpty()) {
+                        EmptyListsView(modifier = Modifier.fillMaxSize())
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical=16.dp), // Padding for list
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(userLists, key = { list -> list.id }) { list ->
+                                // Use the updated ListItem composable
+                                ListItem(
+                                    headlineContent = { Text(list.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+                                    supportingContent = { Text(list.description, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+                                    trailingContent = {
+                                        Row {
+                                            // Share button (implement later if needed)
+                                            // IconButton(onClick = { /* TODO */ }) { Icon(Icons.Filled.Share, "Share") }
+                                            IconButton(onClick = {
+                                                selectedList = list
+                                                showDeleteDialog = true
+                                            }) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                            }
                                         }
-                                        IconButton(onClick = {
-                                            selectedList = list
-                                            showDeleteDialog = true
-                                        }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                                        }
+                                    },
+                                    placeCount = list.places.size, // Assuming places are part of domain model
+                                    updatedTimestamp = list.updatedAt,
+                                    onItemClick = {
+                                        // Navigate using NavController and route from Screen object
+                                        navController.navigate(Screen.ListDetail.createRoute(list.id))
                                     }
-                                },
-                                placeCount = list.places.size, // Assuming places are loaded in domain model
-                                updatedTimestamp = list.updatedAt,
-                                onItemClick = {
-                                    // Navigate to ListDetail screen using NavController
-                                    navController.navigate(Screen.ListDetail.createRoute(list.id))
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
-            }
-            is ListsUiState.Error -> {
-                Box( // Use Box for centering error message
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) { Text(state.message, color = MaterialTheme.colorScheme.error) }
-            }
-        }
+                is ListsUiState.Error -> {
+                    // Display error message centered
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ){
+                        Text(
+                            state.message,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { viewModel.refresh() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            } // End when state
+        } // End Box
     } // End Scaffold
 
-    // --- Delete confirmation dialog (remains the same) ---
+    // --- Delete confirmation dialog ---
     if (showDeleteDialog && selectedList != null) {
         val listToDelete = selectedList!! // Capture non-null value
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false; selectedList = null },
             title = { Text("Delete List") },
-            text = { Text("Are you sure you want to delete the list \"${listToDelete.title}\"?") },
+            text = { Text("Are you sure you want to delete \"${listToDelete.title}\"? This cannot be undone.") }, // Clarify action
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteList(listToDelete.id) // Call ViewModel
+                        viewModel.deleteList(listToDelete.id) // Call ViewModel delete
                         showDeleteDialog = false
                         selectedList = null
-                    }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) // Use error color
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Delete")
                 }
             },
             dismissButton = {
@@ -186,7 +178,7 @@ fun ListsScreen(
     }
 } // End ListsScreen
 
-// --- Completed ListItem Composable ---
+// --- ListItem Composable (Keep as previously defined) ---
 @Composable
 private fun ListItem(
     headlineContent: @Composable () -> Unit,
@@ -194,37 +186,35 @@ private fun ListItem(
     trailingContent: @Composable () -> Unit,
     placeCount: Int,
     updatedTimestamp: Long,
-    onItemClick: () -> Unit, // Renamed from modifier to be explicit action
-    modifier: Modifier = Modifier // Keep default modifier for potential external use
+    onItemClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    // Apply clickable to the Card itself using the passed lambda
     Card(
-        modifier = modifier // Apply any external modifiers first
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onItemClick), // Make the whole card clickable
-        shape = MaterialTheme.shapes.medium, // Consistent shape
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp) // Add subtle elevation
+            .clickable(onClick = onItemClick),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
+        // ... (Implementation from previous ListsScreen example) ...
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp) // Adjust padding
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top // Align top for headline/trailing
+                verticalAlignment = Alignment.Top
             ) {
-                // Box to constrain headline width if trailing content exists
                 Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     headlineContent()
                 }
-                Box { // Box for trailing content alignment
+                Box {
                     trailingContent()
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp)) // Smaller spacer
-            // Box to constrain supporting text width
+            Spacer(modifier = Modifier.height(4.dp))
             Box(modifier = Modifier.fillMaxWidth()) {
                 supportingContent()
             }
@@ -235,30 +225,31 @@ private fun ListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (placeCount == 1) "$placeCount item" else "$placeCount items", // Handle pluralization
+                    text = if (placeCount == 1) "$placeCount item" else "$placeCount items",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Updated ${formatDate(updatedTimestamp)}", // Add "Updated" prefix
+                    text = "Updated ${formatDate(updatedTimestamp)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
-} // --- End ListItem ---
+}
 
-// --- EmptyListsView (remains the same) ---
+// --- EmptyListsView (Keep as previously defined) ---
 @Composable
 private fun EmptyListsView(modifier: Modifier = Modifier) {
+    // ... (Implementation from previous ListsScreen example) ...
     Column(
         modifier = modifier.padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.AddCircle, // Changed Icon for better context
+            imageVector = Icons.Default.SentimentVeryDissatisfied, // Example icon
             contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -270,17 +261,18 @@ private fun EmptyListsView(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Tap the '+' button to create your first list!", // More direct CTA
+            text = "Tap the '+' button in the top bar\nto create your first list!",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center // Center align
+            textAlign = TextAlign.Center
         )
     }
 }
 
-// --- formatDate (remains the same) ---
+// --- formatDate (Keep as previously defined) ---
 private fun formatDate(timestamp: Long): String {
-    if (timestamp <= 0L) return "..." // Handle default timestamp
+    // ... (Implementation from previous ListsScreen example) ...
+    if (timestamp <= 0L) return "..."
     val date = Date(timestamp)
     val formatter = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
     return formatter.format(date)

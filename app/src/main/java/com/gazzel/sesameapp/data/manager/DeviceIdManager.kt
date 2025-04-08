@@ -8,6 +8,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.gazzel.sesameapp.data.manager.ISecurityManager // <<< Use Interface
+import com.gazzel.sesameapp.data.manager.IDeviceIdManager // <<< Add Interface
 
 /**
  * A singleton manager responsible for generating and managing secure device identifiers.
@@ -44,9 +46,9 @@ import javax.inject.Singleton
 @Singleton
 class DeviceIdManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val securityManager: SecurityManager,
+    private val securityManager: ISecurityManager,
     private val logger: Logger
-) {
+) : IDeviceIdManager {
     /**
      * The key used for storing the device ID in secure storage.
      * This key should be unique to prevent conflicts with other secure storage entries.
@@ -65,7 +67,7 @@ class DeviceIdManager @Inject constructor(
      * @return The device's unique identifier
      * @throws SecurityException if ID generation fails
      */
-    fun getDeviceId(): String {
+    override fun getDeviceId(): String {
         return try {
             // First attempt to retrieve existing ID from secure storage
             // This ensures persistence across app restarts
@@ -146,7 +148,7 @@ class DeviceIdManager @Inject constructor(
      *
      * @throws SecurityException if ID reset fails
      */
-    fun resetDeviceId() {
+    override fun resetDeviceId() {
         try {
             // Generate and store a new device ID
             // This invalidates any existing sessions or data

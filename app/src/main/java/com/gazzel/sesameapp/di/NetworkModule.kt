@@ -109,7 +109,4 @@ object NetworkModule {
     fun provideGooglePlacesService(@Named(GOOGLE_PLACES_RETROFIT) retrofit: Retrofit): GooglePlacesService {
         return retrofit.create(GooglePlacesService::class.java)
     }
-
-    // --- NO PROVIDERS FOR AppListService, ListService, UserListService ---
-    // These interfaces should be deleted as they are now replaced by ListApiService.
 }

@@ -1,10 +1,19 @@
+// domain/repository/LocationRepository.kt
 package com.gazzel.sesameapp.domain.repository
 
-import com.gazzel.sesameapp.domain.util.Resource
+// Import Result and LatLng
+import com.gazzel.sesameapp.domain.util.Result // <<< CHANGE: Import Result
 import com.google.android.gms.maps.model.LatLng
 
 interface LocationRepository {
-    suspend fun getCurrentLocation(): Resource<LatLng>
+    // Change return type from Resource<LatLng> to Result<LatLng>
+    suspend fun getCurrentLocation(): Result<LatLng> // <<< CHANGE Return Type
+
     suspend fun hasLocationPermission(): Boolean
-    suspend fun requestLocationPermission(): Boolean
-} 
+
+    // This method is typically handled by UI request launchers,
+    // consider removing it from the repository interface unless it
+    // performs some specific background logic related to permissions.
+    // For now, we'll leave it but comment on its potential removal.
+    suspend fun requestLocationPermission(): Boolean // Keep signature for now
+}

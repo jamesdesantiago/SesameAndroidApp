@@ -1,20 +1,27 @@
-// Create package: presentation/screens/search
-// Create file: presentation/screens/search/SearchPlacesViewModel.kt
+// presentation/screens/search/SearchPlacesViewModel.kt
 package com.gazzel.sesameapp.presentation.screens.search
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gazzel.sesameapp.BuildConfig // Use BuildConfig for API Key
-import com.gazzel.sesameapp.data.manager.PlaceUpdateManager // For notifying list changes
-// Import consolidated ListApiService (adjust if name differs)
-import com.gazzel.sesameapp.data.service.ListApiService
+import com.gazzel.sesameapp.BuildConfig
+import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
+// Import PlaceRepository instead of ListApiService
+import com.gazzel.sesameapp.domain.repository.PlaceRepository // <<< CHANGE
 import com.gazzel.sesameapp.data.service.GooglePlacesService
 import com.gazzel.sesameapp.data.service.AutocompleteRequest
-import com.gazzel.sesameapp.data.service.PlaceCreate // DTO for adding place
+// Import Google API response DTOs
 import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
 import com.gazzel.sesameapp.data.service.PlacePrediction
-import com.gazzel.sesameapp.domain.auth.TokenProvider // Import TokenProvider
+// Import Domain Model
+import com.gazzel.sesameapp.domain.model.PlaceItem // <<< ADD
+// Import Result and extensions
+import com.gazzel.sesameapp.domain.util.Result // <<< ADD
+import com.gazzel.sesameapp.domain.util.onError // <<< ADD
+import com.gazzel.sesameapp.domain.util.onSuccess // <<< ADD
+// Import TokenProvider (Repository handles token now, but keep if needed for other reasons)
+// import com.gazzel.sesameapp.domain.auth.TokenProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,67 +32,65 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
-import android.util.Log
 
-// Define the different states the UI can be in
+// UiState definition remains the same
 sealed class SearchPlacesUiState {
-    object Idle : SearchPlacesUiState() // Initial state or after completion/error reset
+    object Idle : SearchPlacesUiState()
     data class Searching(val query: String) : SearchPlacesUiState()
     data class SuggestionsLoaded(val query: String, val suggestions: List<PlacePrediction>) : SearchPlacesUiState()
-    data class LoadingDetails(val placeName: String?) : SearchPlacesUiState() // Loading place details
-    data class DetailsLoaded(val placeDetails: PlaceDetailsResponse) : SearchPlacesUiState() // Ready for overlay step 1
-    data class AddingPlace(val placeDetails: PlaceDetailsResponse) : SearchPlacesUiState() // When Add Place API call is in progress
-    object PlaceAdded : SearchPlacesUiState() // Place successfully added
+    data class LoadingDetails(val placeName: String?) : SearchPlacesUiState()
+    data class DetailsLoaded(val placeDetails: PlaceDetailsResponse) : SearchPlacesUiState()
+    // Keep PlaceDetailsResponse here for the overlay, even though we map to PlaceItem for repo call
+    data class AddingPlace(val placeDetails: PlaceDetailsResponse) : SearchPlacesUiState()
+    object PlaceAdded : SearchPlacesUiState()
     data class Error(val message: String) : SearchPlacesUiState()
 }
 
-// Enum for overlay steps (copied from old screen)
+// OverlayStep enum remains the same
 enum class OverlayStep { Hidden, ShowPlaceDetails, AskVisitOrNot, AskRating }
 
 @HiltViewModel
 class SearchPlacesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val googlePlacesService: GooglePlacesService,
-    private val listService: ListApiService, // Use consolidated service
-    private val tokenProvider: TokenProvider
+    private val placeRepository: PlaceRepository, // <<< CHANGE: Inject PlaceRepository
+    // private val tokenProvider: TokenProvider // <<< REMOVE (Repository handles token)
 ) : ViewModel() {
 
-    private val listId: String = savedStateHandle.get<String>("listId") ?: ""
+    // Key should match NavGraph argument name
+    private val listId: String = savedStateHandle.get<String>(com.gazzel.sesameapp.presentation.navigation.Screen.SearchPlaces.ARG_LIST_ID) ?: ""
 
     private val _uiState = MutableStateFlow<SearchPlacesUiState>(SearchPlacesUiState.Idle)
     val uiState: StateFlow<SearchPlacesUiState> = _uiState.asStateFlow()
 
-    // Internal state for the multi-step process
     private val _overlayStep = MutableStateFlow(OverlayStep.Hidden)
     val overlayStep: StateFlow<OverlayStep> = _overlayStep.asStateFlow()
 
-    private var _selectedPlaceDetails: PlaceDetailsResponse? = null // Store selected details internally
+    // Internal state to hold data during the multi-step process
+    private var _selectedPlaceDetails: PlaceDetailsResponse? = null
     private var _visitStatus: String? = null
     private var _userRating: String? = null
 
     private var autocompleteJob: Job? = null
-    private val sessionToken = UUID.randomUUID().toString() // Generate unique session token once
-    private val apiKey = BuildConfig.MAPS_API_KEY // Get API key from BuildConfig
+    private val sessionToken = UUID.randomUUID().toString()
+    private val apiKey = BuildConfig.MAPS_API_KEY
 
     init {
         if (listId.isEmpty()) {
             _uiState.value = SearchPlacesUiState.Error("List ID not provided.")
-            Log.e("SearchPlacesVM", "List ID is missing.")
+            Log.e("SearchPlacesVM", "List ID is missing in SavedStateHandle")
         }
     }
 
     fun updateQuery(newQuery: String) {
-        // Update the state immediately to reflect typing
+        // --- Logic remains the same ---
         val currentState = _uiState.value
-        // Preserve suggestions if query changes slightly while suggestions are shown
         val currentSuggestions = if (currentState is SearchPlacesUiState.SuggestionsLoaded) currentState.suggestions else emptyList()
 
         _uiState.value = if(newQuery.isBlank()) SearchPlacesUiState.Idle else SearchPlacesUiState.Searching(newQuery)
-
-        autocompleteJob?.cancel() // Cancel previous job
+        autocompleteJob?.cancel()
 
         if (newQuery.length < 3) {
-            // If query becomes too short, revert to Idle (clears suggestions)
             if (_uiState.value !is SearchPlacesUiState.Idle) {
                 _uiState.value = SearchPlacesUiState.Idle
             }
@@ -93,12 +98,13 @@ class SearchPlacesViewModel @Inject constructor(
         }
 
         autocompleteJob = viewModelScope.launch {
-            delay(400) // Debounce
+            delay(400)
             fetchAutocompleteSuggestions(newQuery)
         }
     }
 
     private suspend fun fetchAutocompleteSuggestions(query: String) {
+        // --- Logic remains the same ---
         Log.d("SearchPlacesVM", "Fetching suggestions for: $query")
         try {
             val request = AutocompleteRequest(input = query, sessionToken = sessionToken)
@@ -121,16 +127,19 @@ class SearchPlacesViewModel @Inject constructor(
     }
 
     fun selectPlace(prediction: PlacePrediction) {
+        // --- Logic remains the same ---
         viewModelScope.launch {
             _uiState.value = SearchPlacesUiState.LoadingDetails(prediction.text.text)
-            _overlayStep.value = OverlayStep.Hidden // Ensure overlay is hidden initially
+            _overlayStep.value = OverlayStep.Hidden
             try {
                 val fields = "id,displayName,formattedAddress,location,rating"
                 val response = googlePlacesService.getPlaceDetails(prediction.placeId, apiKey, fields)
                 if (response.isSuccessful && response.body() != null) {
                     _selectedPlaceDetails = response.body()
                     _uiState.value = SearchPlacesUiState.DetailsLoaded(_selectedPlaceDetails!!)
-                    _overlayStep.value = OverlayStep.ShowPlaceDetails // Trigger overlay
+                    // Trigger overlay via VM state now
+                    proceedToVisitStatusStep() // Or directly trigger overlay step 1
+                    Log.d("SearchPlacesVM", "Details loaded, proceeding to overlay step.")
                 } else {
                     val errorMsg = "Failed to get place details: ${response.code()} ${response.message()}"
                     _uiState.value = SearchPlacesUiState.Error(errorMsg)
@@ -144,9 +153,12 @@ class SearchPlacesViewModel @Inject constructor(
         }
     }
 
+    // Functions controlling overlay steps remain mostly the same
     fun proceedToVisitStatusStep() {
         if (_uiState.value is SearchPlacesUiState.DetailsLoaded) {
             _overlayStep.value = OverlayStep.AskVisitOrNot
+        } else {
+            Log.w("SearchPlacesVM", "Cannot proceed to visit status, not in DetailsLoaded state.")
         }
     }
 
@@ -154,20 +166,29 @@ class SearchPlacesViewModel @Inject constructor(
         if (_overlayStep.value == OverlayStep.AskVisitOrNot) {
             _visitStatus = status
             _overlayStep.value = OverlayStep.AskRating
+        } else {
+            Log.w("SearchPlacesVM", "Cannot set visit status, not in AskVisitOrNot step.")
         }
     }
 
     fun setRatingAndAddPlace(rating: String?) {
         if (_overlayStep.value == OverlayStep.AskRating && _selectedPlaceDetails != null) {
             _userRating = rating
-            addPlaceToList()
+            // Trigger the refactored add place logic
+            addPlaceToListWithRepository() // <<< CALL REFACTORED METHOD
         } else {
             Log.w("SearchPlacesVM", "Cannot add place, invalid state. Overlay: ${_overlayStep.value}, Details: ${_selectedPlaceDetails != null}")
         }
     }
 
-    private fun addPlaceToList() {
-        val placeToAdd = _selectedPlaceDetails ?: return
+    // --- REFACTORED: Add Place Logic ---
+    private fun addPlaceToListWithRepository() {
+        val placeDetails = _selectedPlaceDetails
+        if (placeDetails == null) {
+            _uiState.value = SearchPlacesUiState.Error("Cannot add place: Details are missing.")
+            resetOverlayState()
+            return
+        }
         if (listId.isEmpty()) {
             _uiState.value = SearchPlacesUiState.Error("Cannot add place: List ID is missing.")
             resetOverlayState()
@@ -175,76 +196,67 @@ class SearchPlacesViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _uiState.value = SearchPlacesUiState.AddingPlace(placeToAdd) // Show loading specifically for adding
-            val token = tokenProvider.getToken()
-            if (token == null) {
-                _uiState.value = SearchPlacesUiState.Error("Authentication error.")
-                resetOverlayState()
-                return@launch
-            }
+            _uiState.value = SearchPlacesUiState.AddingPlace(placeDetails) // Show loading specifically for adding
 
             try {
-                // Create the DTO to send to your backend
-                val placeCreateDto = PlaceCreate(
-                    placeId = placeToAdd.id,
-                    name = placeToAdd.displayName.text,
-                    address = placeToAdd.formattedAddress,
-                    latitude = placeToAdd.location.latitude,
-                    longitude = placeToAdd.location.longitude,
-                    // Pass the rating and visitStatus collected from the user
-                    rating = _userRating,
-                    // visitStatus = _visitStatus // Add visitStatus to your PlaceCreate DTO if your API expects it
+                // 1. Map Google Place Details + User Input -> PlaceItem (Domain Model)
+                val placeItemToAdd = PlaceItem(
+                    id = placeDetails.id, // Use Google Place ID as the ID for the item
+                    name = placeDetails.displayName.text,
+                    address = placeDetails.formattedAddress,
+                    latitude = placeDetails.location.latitude,
+                    longitude = placeDetails.location.longitude,
+                    description = "", // Google details API didn't request description, add if needed
+                    listId = listId, // Assign the target list ID
+                    notes = null, // Notes aren't collected here
+                    rating = _userRating, // User's rating (String?)
+                    visitStatus = _visitStatus // User's visit status (String?)
                 )
+                Log.d("SearchPlacesVM", "Mapped to PlaceItem: $placeItemToAdd")
 
-                // Ensure service method and parameters match your consolidated ListApiService
-                val response = listService.addPlace( // Adjust method name if needed
-                    listId = listId,
-                    place = placeCreateDto, // Pass the DTO
-                    token = "Bearer $token" // Adjust parameter name if needed
-                )
+                // 2. Call Repository
+                Log.d("SearchPlacesVM", "Calling placeRepository.addPlace...")
+                val result: Result<PlaceItem> = placeRepository.addPlace(placeItemToAdd)
 
-                if (response.isSuccessful || response.code() == 204) { // Allow 204 No Content
-                    Log.d("SearchPlacesVM", "Place added successfully to list $listId")
+                // 3. Handle Repository Result
+                result.onSuccess { addedPlaceItem ->
+                    Log.d("SearchPlacesVM", "Place added successfully via repository: ${addedPlaceItem.id}")
                     PlaceUpdateManager.notifyPlaceAdded() // Notify other parts of the app
                     _uiState.value = SearchPlacesUiState.PlaceAdded // Signal success
                     resetOverlayState() // Reset internal state
-                } else {
-                    val errorMsg = "Failed to add place: ${response.code()} - ${response.errorBody()?.string()}"
-                    _uiState.value = SearchPlacesUiState.Error(errorMsg)
-                    Log.e("SearchPlacesVM", errorMsg)
+                }.onError { exception ->
+                    Log.e("SearchPlacesVM", "Failed to add place via repository", exception)
+                    _uiState.value = SearchPlacesUiState.Error(exception.message ?: "Failed to add place")
                     resetOverlayState() // Reset internal state on error
                 }
+
             } catch (e: Exception) {
-                val errorMsg = "Exception adding place: ${e.message}"
-                _uiState.value = SearchPlacesUiState.Error(errorMsg)
-                Log.e("SearchPlacesVM", errorMsg, e)
+                Log.e("SearchPlacesVM", "Exception during addPlaceToListWithRepository", e)
+                _uiState.value = SearchPlacesUiState.Error("An unexpected error occurred while adding the place.")
                 resetOverlayState() // Reset internal state on exception
             }
         }
     }
 
+    // Reset and Error handling functions remain the same
     fun resetOverlayState() {
         _overlayStep.value = OverlayStep.Hidden
         _selectedPlaceDetails = null
         _visitStatus = null
         _userRating = null
-        // Consider resetting uiState to Idle or SuggestionsLoaded based on context
-        // If we reset overlay, probably go back to Idle or show suggestions if query exists
         val currentUiState = _uiState.value
-        if (currentUiState is SearchPlacesUiState.SuggestionsLoaded) {
-            // Keep suggestions if they were present
-        } else if (currentUiState !is SearchPlacesUiState.Idle && currentUiState !is SearchPlacesUiState.Searching){
+        // Avoid resetting if searching or showing suggestions
+        if (currentUiState !is SearchPlacesUiState.Searching &&
+            currentUiState !is SearchPlacesUiState.SuggestionsLoaded &&
+            currentUiState !is SearchPlacesUiState.Idle) {
             _uiState.value = SearchPlacesUiState.Idle
         }
     }
 
     fun clearError() {
-        // Revert to a non-error state, e.g., Idle or based on query
         val currentState = _uiState.value
         if (currentState is SearchPlacesUiState.Error) {
-            // If there was a query before the error, maybe go back to Searching/SuggestionsLoaded?
-            // For simplicity, just go back to Idle for now.
-            _uiState.value = SearchPlacesUiState.Idle
+            _uiState.value = SearchPlacesUiState.Idle // Simple reset to Idle
         }
     }
 }

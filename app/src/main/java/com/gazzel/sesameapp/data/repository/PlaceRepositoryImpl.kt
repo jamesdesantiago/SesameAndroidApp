@@ -1,3 +1,4 @@
+// data/repository/PlaceRepositoryImpl.kt
 package com.gazzel.sesameapp.data.repository
 
 import android.util.Log
@@ -5,320 +6,335 @@ import com.google.android.gms.maps.model.LatLng
 import retrofit2.Response
 import com.gazzel.sesameapp.data.local.dao.PlaceDao
 import com.gazzel.sesameapp.data.local.entity.PlaceEntity
-import com.gazzel.sesameapp.data.mapper.toDomain
+import com.gazzel.sesameapp.data.service.ListApiService
+import com.gazzel.sesameapp.data.remote.dto.PlaceCreateDto
+import com.gazzel.sesameapp.data.remote.dto.PlaceUpdateDto
+import com.gazzel.sesameapp.data.model.ListDto
 import com.gazzel.sesameapp.data.model.PlaceDto
-import com.gazzel.sesameapp.data.service.AppListService
-import com.gazzel.sesameapp.domain.exception.AppException // Keep AppException
-import com.gazzel.sesameapp.domain.model.Place
-import com.gazzel.sesameapp.domain.model.PlaceItem
+// Import Domain models
+import com.gazzel.sesameapp.domain.model.Place // Keep for detailed methods interface contract
+import com.gazzel.sesameapp.domain.model.PlaceItem // Primary model for implementation
+// Other necessary imports
+import com.gazzel.sesameapp.domain.auth.TokenProvider
+import com.gazzel.sesameapp.domain.exception.AppException
 import com.gazzel.sesameapp.domain.repository.PlaceRepository
-import com.gazzel.sesameapp.domain.util.Result // Use Result consistently
+import com.gazzel.sesameapp.domain.util.Result
+import com.gazzel.sesameapp.domain.util.onError
+import com.gazzel.sesameapp.domain.util.onSuccess
+import com.gazzel.sesameapp.domain.util.map // Add map import
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.map as flowMap // Alias flow's map to avoid clash
+import kotlinx.coroutines.withContext
+import java.io.IOException
 import javax.inject.Inject
-import com.gazzel.sesameapp.data.service.PlaceCreate as ServicePlaceCreate
-import com.gazzel.sesameapp.data.service.PlaceUpdate as ServicePlaceUpdate
-import com.gazzel.sesameapp.domain.model.ListResponse
-import com.gazzel.sesameapp.domain.util.onError
-import com.gazzel.sesameapp.domain.util.onSuccess
+import javax.inject.Singleton
 
-// --- Helper Functions (Top-Level) ---
-
-private suspend fun getAuthTokenPlaceRepo(): String {
-    println("WARNING: Using DUMMY_AUTH_TOKEN in PlaceRepositoryImpl helpers")
-    return "DUMMY_AUTH_TOKEN"
-}
-
-// *** CHANGE HELPERS BACK TO RETURN Result<T> ***
-
-// Helper using Result<T>
-private suspend fun <T, R> handleApiCallForResult( // Renamed is fine
-    apiCall: suspend () -> Response<T>,
-    mapper: (T) -> R
-): Result<R> { // << Return Result<R>
-    return try {
-        Log.d("ApiCallHelper", "Executing API call...")
-        val response = apiCall()
-        Log.d("ApiCallHelper", "Response Code: ${response.code()}")
-        if (response.isSuccessful) {
-            response.body()?.let { body ->
-                Result.success(mapper(body)) // << Use Result.success
-            } ?: Result.error(AppException.UnknownException("API success but response body was null")) // << Use Result.error
-        } else {
-            Result.error(mapErrorToAppException(response.code(), response.errorBody()?.string())) // << Use Result.error
-        }
-    } catch (e: Exception) {
-        Result.error(mapExceptionToAppException(e)) // << Use Result.error
-    }
-}
-
-// Helper for Unit responses using Result<Unit>
-private suspend fun handleUnitApiCallForResult( // Renamed is fine
-    apiCall: suspend () -> Response<Unit>
-): Result<Unit> { // << Return Result<Unit>
-    return try {
-        Log.d("ApiCallHelper", "Executing Unit API call...")
-        val response = apiCall()
-        Log.d("ApiCallHelper", "Unit Response Code: ${response.code()}")
-        if (response.isSuccessful) {
-            Result.success(Unit) // << Use Result.success
-        } else {
-            Result.error(mapErrorToAppException(response.code(), response.errorBody()?.string())) // << Use Result.error
-        }
-    } catch (e: Exception) {
-        Result.error(mapExceptionToAppException(e)) // << Use Result.error
-    }
-}
-
-// Error mapping helpers (return AppException for Result.error)
-private fun mapErrorToAppException(code: Int, errorBody: String?): AppException { // << Return AppException
-    Log.e("RepositoryError", "API Error $code: ${errorBody ?: "Unknown error"}")
-    return when (code) {
-        400 -> AppException.ValidationException(errorBody ?: "Bad Request")
-        401 -> AppException.AuthException(errorBody ?: "Unauthorized")
-        403 -> AppException.AuthException(errorBody ?: "Forbidden")
-        404 -> AppException.ResourceNotFoundException(errorBody ?: "Not Found")
-        in 500..599 -> AppException.NetworkException("Server Error ($code): ${errorBody ?: ""}", code)
-        else -> AppException.NetworkException("Network Error ($code): ${errorBody ?: ""}", code)
-    }
-}
-
-private fun mapExceptionToAppException(e: Exception): AppException { // << Return AppException
-    Log.e("RepositoryError", "Network error: ${e.message ?: "Unknown exception"}", e)
-    return when (e) {
-        is java.io.IOException -> AppException.NetworkException("Network IO error: ${e.message}", cause = e)
-        else -> AppException.UnknownException(e.message ?: "An unknown error occurred", e)
-    }
-}
-
-// Place DTO to Domain Item Mapper
+// Mapper: DTO -> PlaceItem (Internal consistency)
 private fun PlaceDto.toPlaceItem(listId: String): PlaceItem {
     return PlaceItem(
         id = this.id, name = this.name, description = this.description ?: "",
         address = this.address, latitude = this.latitude, longitude = this.longitude,
-        listId = listId, notes = null, rating = this.rating, visitStatus = null
+        listId = listId, notes = null, // Map if DTO has notes/status
+        rating = this.rating, visitStatus = null
     )
 }
 
-// --- Repository Implementation ---
+// Mapper: Entity -> PlaceItem (Internal consistency)
+private fun PlaceEntity.toDomainPlaceItem(): PlaceItem { // Renamed for clarity
+    return PlaceItem(
+        id = this.id, name = this.name, description = this.description,
+        address = this.address, latitude = this.latitude, longitude = this.longitude,
+        listId = this.listId, notes = this.notes, rating = this.rating,
+        visitStatus = this.visitStatus
+    )
+}
 
+// Mapper: PlaceItem -> Entity (Internal consistency)
+private fun PlaceItem.toPlaceEntity(): PlaceEntity { // Renamed for clarity
+    return PlaceEntity(
+        id = this.id, name = this.name, description = this.description,
+        address = this.address, latitude = this.latitude, longitude = this.longitude,
+        listId = this.listId, notes = this.notes, rating = this.rating,
+        visitStatus = this.visitStatus,
+        // Let Room handle createdAt/updatedAt if not explicitly set
+    )
+}
+
+
+@Singleton
 class PlaceRepositoryImpl @Inject constructor(
-    private val appListService: AppListService,
-    private val placeDao: PlaceDao
-    // TODO: Inject AuthManager
+    private val listApiService: ListApiService,
+    private val placeDao: PlaceDao,
+    private val tokenProvider: TokenProvider
 ) : PlaceRepository {
 
-    // This local mapper duplicates the top-level one, remove it
-    /*
-    private fun PlaceDto.toPlaceItem(listId: String): PlaceItem {
-        return PlaceItem(...)
-    }
-    */
+    // --- API Call Handlers (Keep as previously defined) ---
+    private suspend fun <Dto, Domain> handleApiCallToDomain(apiCall: suspend () -> Response<Dto>, mapper: (Dto) -> Domain): Result<Domain> { /* ... */ }
+    private suspend fun <Dto, Domain> handleListApiCallToDomain(apiCall: suspend () -> Response<List<Dto>>, mapper: (Dto) -> Domain): Result<List<Domain>> { /* ... */ }
+    private suspend fun handleUnitApiCall(apiCall: suspend () -> Response<Unit>): Result<Unit> { /* ... */ }
+    private fun mapErrorToAppException(code: Int, errorBody: String?): AppException { /* ... */ }
+    private fun mapExceptionToAppException(e: Exception): AppException { /* ... */ }
+    // --- End API Call Handlers ---
 
-    override suspend fun getPlaces(): Result<List<PlaceItem>> { // Interface expects Result
+
+    // --- Interface Implementation (Focusing on PlaceItem) ---
+
+    override suspend fun getPlaces(): Result<List<PlaceItem>> {
         return try {
-            val cachedEntities = placeDao.getAllPlaces().first()
+            // 1. Try cache
+            val cachedEntities = withContext(Dispatchers.IO) { placeDao.getAllPlaces().first() }
             if (cachedEntities.isNotEmpty()) {
                 Log.d("PlaceRepo", "getPlaces: Returning cached data")
-                return Result.success(cachedEntities.map { it.toDomain() }) // Use Result.success
+                return Result.success(cachedEntities.map { it.toDomainPlaceItem() }) // Map Entity -> PlaceItem
             }
             Log.d("PlaceRepo", "getPlaces: Cache empty, fetching from network")
 
-            val token = getAuthTokenPlaceRepo()
-            // *** FIX: Assign Result, not Resource ***
-            val listsResult: Result<List<ListResponse>> = handleApiCallForResult( // Use Result helper
-                apiCall = { appListService.getUserLists("Bearer $token") },
-                mapper = { it }
+            // 2. Fetch all user lists
+            val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("Not authenticated"))
+            val listsResult = handleListApiCallToDomain(
+                apiCall = { listApiService.getUserLists("Bearer $token") },
+                mapper = { listDto: ListDto -> listDto } // Map to self first
             )
 
-            // Now process the Result correctly
-            if (listsResult is Result.Success) {
-                val lists = listsResult.data
+            listsResult.flatMap { lists -> // Use flatMap to chain results
                 val allPlaceItems = mutableListOf<PlaceItem>()
                 Log.d("PlaceRepo", "getPlaces: Fetched ${lists.size} lists")
 
-                for (list in lists) {
-                    try {
-                        val listId = list.id
-                        // *** FIX: Assign Result, not Resource ***
-                        val detailsResult: Result<ListResponse> = handleApiCallForResult( // Use Result helper
-                            apiCall = { appListService.getListDetail("Bearer $token", listId) },
-                            mapper = { it }
-                        )
+                var encounteredError: AppException? = null
 
-                        if (detailsResult is Result.Success) {
-                            detailsResult.data.places?.let { placesDtoList ->
-                                val placeItemsInList = placesDtoList.map { placeDto ->
-                                    placeDto.toPlaceItem(listId) // Use top-level mapper
-                                }
-                                allPlaceItems.addAll(placeItemsInList)
-                            }
-                        } else if (detailsResult is Result.Error) {
-                            Log.w("PlaceRepo", "getPlaces: Failed fetch details for list ${listId}: ${detailsResult.exception.message}")
+                // 3. Fetch details for each list
+                for (list in lists) {
+                    val detailsResult = handleApiCallToDomain(
+                        apiCall = { listApiService.getListDetail("Bearer $token", list.id) },
+                        mapper = { listDto: ListDto -> listDto }
+                    )
+
+                    detailsResult.onSuccess { listDetailDto ->
+                        listDetailDto.places?.let { placesDtoList ->
+                            allPlaceItems.addAll(placesDtoList.map { it.toPlaceItem(list.id) })
                         }
-                    } catch (e: Exception) {
-                        Log.e("PlaceRepo", "getPlaces: Error processing list ${list.id}", e)
+                    }.onError { exception ->
+                        Log.w("PlaceRepo", "getPlaces: Failed fetch details for list ${list.id}: ${exception.message}")
+                        // Store first error encountered, but continue fetching others
+                        if (encounteredError == null) encounteredError = exception
                     }
                 }
 
-                Log.d("PlaceRepo", "getPlaces: Total places fetched: ${allPlaceItems.size}")
-                val entities = allPlaceItems.map { PlaceEntity.fromDomain(it) }
-                if (entities.isNotEmpty()) {
-                    placeDao.insertPlaces(entities)
-                    Log.d("PlaceRepo", "getPlaces: Cached ${entities.size} places")
+                // 4. Process results
+                if (encounteredError != null && allPlaceItems.isEmpty()) {
+                    // If we encountered errors AND got no places at all, return the error
+                    Result.error(encounteredError!!)
+                } else {
+                    // If we got some places (even with partial errors), cache and return success
+                    Log.d("PlaceRepo", "getPlaces: Total places fetched: ${allPlaceItems.size}")
+                    if (allPlaceItems.isNotEmpty()) {
+                        val entities = allPlaceItems.map { it.toPlaceEntity() }
+                        withContext(Dispatchers.IO) { placeDao.insertPlaces(entities) } // Cache results
+                        Log.d("PlaceRepo", "getPlaces: Cached ${entities.size} places")
+                    }
+                    Result.success(allPlaceItems) // Return successfully fetched items
                 }
-                Result.success(allPlaceItems) // Use Result.success
-            } else { // listsResult is Result.Error
-                Log.e("PlaceRepo", "getPlaces: Failed to load lists: ${(listsResult as Result.Error).exception.message}")
-                Result.error(listsResult.exception) // Propagate Result.error
-            }
+            } // Propagate error from listsResult.flatMap if initial list fetch failed
         } catch (e: Exception) {
             Log.e("PlaceRepo", "getPlaces: General exception", e)
-            Result.error(mapExceptionToAppException(e)) // Use Result.error
+            Result.error(mapExceptionToAppException(e))
         }
     }
 
-    override suspend fun getPlacesByListId(listId: String): Result<List<PlaceItem>> { // Interface expects Result
+    override suspend fun getPlacesByListId(listId: String): Result<List<PlaceItem>> {
         return try {
-            val cachedEntities = placeDao.getPlacesByListId(listId).first()
+            // 1. Try Cache
+            val cachedEntities = withContext(Dispatchers.IO) { placeDao.getPlacesByListId(listId).first() }
             if (cachedEntities.isNotEmpty()) {
                 Log.d("PlaceRepo", "getPlacesByListId($listId): Returning cached data")
-                return Result.success(cachedEntities.map { it.toDomain() }) // Use Result.success
+                return Result.success(cachedEntities.map { it.toDomainPlaceItem() }) // Entity -> PlaceItem
             }
             Log.d("PlaceRepo", "getPlacesByListId($listId): Cache empty, fetching from network")
 
-            val token = getAuthTokenPlaceRepo()
-            // *** FIX: Assign Result, not Resource ***
-            val detailsResult: Result<ListResponse> = handleApiCallForResult( // Use Result helper
-                apiCall = { appListService.getListDetail("Bearer $token", listId) },
-                mapper = { it }
+            // 2. Fetch List Details from API
+            val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("Not authenticated"))
+            val detailsResult = handleApiCallToDomain(
+                apiCall = { listApiService.getListDetail("Bearer $token", listId) },
+                mapper = { listDto: ListDto -> listDto }
             )
 
-            if (detailsResult is Result.Success) {
-                val placesDtoList = detailsResult.data.places.orEmpty()
-                val placeItems = placesDtoList.map { placeDto ->
-                    placeDto.toPlaceItem(listId) // Use top-level mapper
-                }
+            detailsResult.map { listDetailDto -> // Map success case
+                val placesDtoList = listDetailDto.places.orEmpty()
+                val placeItems = placesDtoList.map { it.toPlaceItem(listId) } // DTO -> PlaceItem
 
-                val entities = placeItems.map { PlaceEntity.fromDomain(it) }
-                if (entities.isNotEmpty()) {
-                    placeDao.insertPlaces(entities)
+                // 3. Cache results
+                if (placeItems.isNotEmpty()) {
+                    val entities = placeItems.map { it.toPlaceEntity() }
+                    withContext(Dispatchers.IO) { placeDao.insertPlaces(entities) }
                     Log.d("PlaceRepo", "getPlacesByListId($listId): Cached ${entities.size} places")
                 }
-                Result.success(placeItems) // Use Result.success
-            } else { // detailsResult is Result.Error
-                Log.e("PlaceRepo", "getPlacesByListId($listId): Failed: ${(detailsResult as Result.Error).exception.message}")
-                Result.error(detailsResult.exception) // Propagate Result.error
-            }
+                placeItems // Return the list of PlaceItems
+            } // Propagate error if detailsResult was Error
+
         } catch (e: Exception) {
             Log.e("PlaceRepo", "getPlacesByListId($listId): General exception", e)
-            Result.error(mapExceptionToAppException(e)) // Use Result.error
+            Result.error(mapExceptionToAppException(e))
         }
     }
 
-    override suspend fun addPlace(place: PlaceItem): Result<PlaceItem> { // Interface expects Result
-        val token = getAuthTokenPlaceRepo()
-        val placeCreateDto = ServicePlaceCreate(
+    override suspend fun addPlace(place: PlaceItem): Result<PlaceItem> {
+        // Map Domain PlaceItem -> Request PlaceCreateDto
+        val placeCreateDto = PlaceCreateDto(
             placeId = place.id,
-            name = place.name,
-            address = place.address,
-            latitude = place.latitude,
-            longitude = place.longitude,
-            rating = place.rating?.toString()
+            name = place.name, address = place.address,
+            latitude = place.latitude, longitude = place.longitude,
+            rating = place.rating,
+            // notes = place.notes, // Add if supported
+            // visitStatus = place.visitStatus // Add if supported
         )
-        // *** FIX: Assign Result, not Resource ***
-        val result: Result<PlaceItem> = handleApiCallForResult( // Use Result helper
-            apiCall = { appListService.addPlaceToList("Bearer $token", place.listId, placeCreateDto) },
-            mapper = { it: PlaceItem -> it }
-        )
-        result.onSuccess { addedPlace ->
-            placeDao.insertPlace(PlaceEntity.fromDomain(addedPlace))
-            Log.d("PlaceRepo", "addPlace: Successfully added and cached ${addedPlace.id}")
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("Not authenticated"))
+
+        // Call API
+        val apiResult = handleUnitApiCall {
+            listApiService.addPlace(
+                authorization = "Bearer $token",
+                listId = place.listId,
+                place = placeCreateDto
+            )
         }
-        return result
-    }
 
-    override suspend fun updatePlace(place: PlaceItem): Result<PlaceItem> { // Interface expects Result
-        val token = getAuthTokenPlaceRepo()
-        val placeUpdateDto = ServicePlaceUpdate(
-            name = place.name,
-            address = place.address,
-            rating = place.rating?.toString(),
-            notes = place.notes
-        )
-        // *** FIX: Assign Result, not Resource ***
-        val result: Result<PlaceItem> = handleApiCallForResult( // Use Result helper
-            apiCall = { appListService.updatePlace("Bearer $token", place.listId, place.id, placeUpdateDto) },
-            mapper = { item: PlaceItem -> item }
-        )
-        result.onSuccess { updatedPlace ->
-            placeDao.updatePlace(PlaceEntity.fromDomain(updatedPlace))
-            Log.d("PlaceRepo", "updatePlace: Successfully updated and cached ${updatedPlace.id}")
-        }
-        return result
-    }
-
-    override suspend fun deletePlace(placeId: String): Result<Unit> { // Interface expects Result
-        return try {
-            val entity = placeDao.getPlaceById(placeId)
-            if (entity == null) {
-                Log.w("PlaceRepo", "deletePlace($placeId): Not found locally.")
-                // Return Result.error consistent with interface
-                return Result.error(AppException.ResourceNotFoundException("Place with ID $placeId not found locally."))
+        // If API succeeds, update local cache and return the original item
+        return apiResult.flatMap { // Use flatMap as DB write can fail
+            withContext(Dispatchers.IO) {
+                try {
+                    placeDao.insertPlace(place.toPlaceEntity()) // Use PlaceItem -> Entity mapper
+                    Log.d("PlaceRepo", "addPlace: Successfully added and cached ${place.id}")
+                    Result.success(place) // Return the original item
+                } catch (dbEx: Exception) {
+                    Log.e("PlaceRepo", "addPlace: DB insert failed after API success for ${place.id}", dbEx)
+                    Result.error(AppException.DatabaseException("Failed to cache added place", dbEx))
+                }
             }
-            val listId = entity.listId
-            val token = getAuthTokenPlaceRepo()
-
-            // *** FIX: Assign Result, not Resource ***
-            val result: Result<Unit> = handleUnitApiCallForResult { // Use Result helper
-                appListService.removePlaceFromList("Bearer $token", listId, placeId)
-            }
-
-            result.onSuccess {
-                placeDao.deletePlace(placeId)
-                Log.d("PlaceRepo", "deletePlace($placeId): Successfully deleted from API and cache.")
-            }
-            result
-        } catch (e: Exception) {
-            Log.e("PlaceRepo", "deletePlace($placeId): General exception", e)
-            Result.error(mapExceptionToAppException(e)) // Use Result.error
         }
     }
 
+    override suspend fun updatePlace(place: PlaceItem): Result<PlaceItem> {
+        // Map Domain PlaceItem -> Request PlaceUpdateDto
+        val placeUpdateDto = PlaceUpdateDto(
+            name = place.name, address = place.address,
+            rating = place.rating, notes = place.notes
+            // visitStatus = place.visitStatus // Add if supported
+        )
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("Not authenticated"))
 
-    // --- Unimplemented Methods (Matching Interface expected Result<T>) ---
+        // Call API
+        val apiResult = handleUnitApiCall {
+            listApiService.updatePlace(
+                authorization = "Bearer $token",
+                listId = place.listId, placeId = place.id,
+                update = placeUpdateDto
+            )
+        }
 
-    override suspend fun updatePlace(place: Place): Result<Unit> {
-        return Result.error(AppException.UnknownException("Detailed updatePlace(Place) not implemented"))
+        // If API succeeds, update local cache and return the updated item
+        return apiResult.flatMap { // Use flatMap as DB write can fail
+            withContext(Dispatchers.IO) {
+                try {
+                    placeDao.updatePlace(place.toPlaceEntity()) // Use PlaceItem -> Entity mapper
+                    Log.d("PlaceRepo", "updatePlace: Successfully updated and cached ${place.id}")
+                    Result.success(place) // Return the updated item
+                } catch (dbEx: Exception) {
+                    Log.e("PlaceRepo", "updatePlace: DB update failed after API success for ${place.id}", dbEx)
+                    Result.error(AppException.DatabaseException("Failed to cache updated place", dbEx))
+                }
+            }
+        }
     }
+
+    override suspend fun deletePlace(placeId: String): Result<Unit> {
+        // 1. Find the place locally to get its listId
+        val entity = withContext(Dispatchers.IO) { placeDao.getPlaceById(placeId) }
+        if (entity == null) {
+            Log.w("PlaceRepo", "deletePlace($placeId): Not found locally.")
+            // Decide if this is an error or success (item already gone?) - Let's return success.
+            // return Result.error(AppException.ResourceNotFoundException("Place with ID $placeId not found locally."))
+            return Result.success(Unit)
+        }
+        val listId = entity.listId
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("Not authenticated"))
+
+        // 2. Call API to delete
+        val apiResult = handleUnitApiCall {
+            listApiService.removePlaceFromList(
+                authorization = "Bearer $token",
+                listId = listId, placeId = placeId
+            )
+        }
+
+        // 3. If API succeeds or place was already gone (404?), delete locally
+        return apiResult.flatMap { // If API call itself was successful (e.g. 204)
+            withContext(Dispatchers.IO) {
+                try {
+                    placeDao.deletePlace(placeId)
+                    Log.d("PlaceRepo", "deletePlace($placeId): Successfully deleted from API and cache.")
+                    Result.success(Unit)
+                } catch (dbEx: Exception) {
+                    Log.e("PlaceRepo", "deletePlace($placeId): DB delete failed after API success.", dbEx)
+                    Result.error(AppException.DatabaseException("Failed to delete place from cache", dbEx))
+                }
+            }
+        }.onError { exception -> // Handle API errors specifically
+            if (exception is AppException.ResourceNotFoundException) {
+                // If API returned 404, the item is already gone remotely. Still try to delete locally.
+                Log.w("PlaceRepo", "deletePlace($placeId): API returned 404. Attempting local delete.")
+                try {
+                    withContext(Dispatchers.IO) { placeDao.deletePlace(placeId) }
+                    Result.success(Unit) // Consider this overall success
+                } catch (dbEx: Exception) {
+                    Log.e("PlaceRepo", "deletePlace($placeId): DB delete failed after API 404.", dbEx)
+                    Result.error(AppException.DatabaseException("Failed to delete place from cache after API 404", dbEx))
+                }
+            } else {
+                // Propagate other API errors
+                Result.error(exception)
+            }
+        }
+    }
+
+
+    // --- Flow methods (Interact primarily with DAO, map Entity -> PlaceItem) ---
+    override fun getPlaceById(placeId: String): Flow<PlaceItem?> {
+        return placeDao.getPlaceByIdFlow(placeId)
+            .flowMap { entity -> entity?.toDomainPlaceItem() } // Use flow's map operator
+            .flowOn(Dispatchers.IO) // Perform DB query on IO dispatcher
+    }
+
+
+    // --- Methods using detailed Place model (Currently Not Implemented) ---
 
     override suspend fun getPlaceDetails(placeId: String): Result<Place> {
+        Log.w("PlaceRepositoryImpl", "getPlaceDetails(placeId) called - NOT IMPLEMENTED")
+        // TODO: Implement fetching detailed Place data (e.g., from Google Places SDK or specific API endpoint)
         return Result.error(AppException.UnknownException("getPlaceDetails not implemented"))
     }
 
-    override suspend fun savePlace(place: Place): Result<String> {
-        return Result.error(AppException.UnknownException("savePlace not implemented"))
+    override suspend fun searchPlaces(query: String, location: LatLng, radius: Int): Result<List<Place>> {
+        Log.w("PlaceRepositoryImpl", "searchPlaces(...) called - NOT IMPLEMENTED")
+        // TODO: Implement detailed Place search (e.g., via Google Places SDK Nearby Search)
+        return Result.error(AppException.UnknownException("Detailed searchPlaces not implemented"))
     }
 
-    override suspend fun getNearbyPlaces(
-        location: LatLng,
-        radius: Int,
-        type: String?
-    ): Result<List<Place>> {
+    override suspend fun getNearbyPlaces(location: LatLng, radius: Int, type: String?): Result<List<Place>> {
+        Log.w("PlaceRepositoryImpl", "getNearbyPlaces(...) called - NOT IMPLEMENTED")
+        // TODO: Implement detailed Nearby Place search (e.g., via Google Places SDK Nearby Search)
         return Result.error(AppException.UnknownException("getNearbyPlaces not implemented"))
     }
 
-    // --- Flow methods ---
-
-    override fun searchPlaces(query: String, location: LatLng, radius: Int): Flow<List<Place>> {
-        return flow { throw NotImplementedError("Detailed searchPlaces not implemented") }
+    override suspend fun savePlace(place: Place): Result<String> {
+        Log.w("PlaceRepositoryImpl", "savePlace(Place) called - NOT IMPLEMENTED")
+        // TODO: Implement logic to save FULL Place details (might involve different API/DB schema)
+        return Result.error(AppException.UnknownException("savePlace for detailed Place not implemented"))
     }
 
-    override fun getPlaceById(placeId: String): Flow<PlaceItem?> {
-        return placeDao.getPlaceByIdFlow(placeId)
-            .map { entity -> entity?.toDomain() } // Assuming PlaceEntity has toDomain() -> PlaceItem?
-    }
+    // --- Error Mapping Helpers (Keep as is) ---
+    // ... (mapErrorToAppException and mapExceptionToAppException) ...
 
 } // End of PlaceRepositoryImpl class

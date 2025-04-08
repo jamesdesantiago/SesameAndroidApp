@@ -1,25 +1,28 @@
+// presentation/screens/lists/ListsViewModel.kt
 package com.gazzel.sesameapp.presentation.screens.lists
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+// Import Use Case instead of repositories directly (keep repo for delete)
+import com.gazzel.sesameapp.domain.usecase.GetUserListsUseCase // <<< ADD Use Case
+import com.gazzel.sesameapp.domain.repository.ListRepository // Keep for deleteList
+// Import necessary domain/util classes
 import com.gazzel.sesameapp.domain.model.SesameList
-import com.gazzel.sesameapp.domain.repository.ListRepository
-import com.gazzel.sesameapp.domain.repository.UserRepository
+import com.gazzel.sesameapp.domain.util.Result
+import com.gazzel.sesameapp.domain.util.onError
+import com.gazzel.sesameapp.domain.util.onSuccess
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.gazzel.sesameapp.domain.util.Result // Import Result
-import com.gazzel.sesameapp.domain.util.onSuccess // Import extensions
-import com.gazzel.sesameapp.domain.util.onError // Import extensions
+import android.util.Log // Optional logging
 
 @HiltViewModel
 class ListsViewModel @Inject constructor(
-    private val listRepository: ListRepository,
-    private val userRepository: UserRepository
+    private val getUserListsUseCase: GetUserListsUseCase, // <<< INJECT Use Case
+    private val listRepository: ListRepository // <<< Keep Repository for actions like delete
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ListsUiState>(ListsUiState.Loading)
@@ -32,51 +35,34 @@ class ListsViewModel @Inject constructor(
     private fun loadLists() {
         _uiState.value = ListsUiState.Loading
         viewModelScope.launch {
-            try {
-                // Safely get the current user
-                val user = userRepository.getCurrentUser().firstOrNull()
-                if (user == null) {
-                    _uiState.value = ListsUiState.Error("Could not load user information.")
-                    return@launch
-                }
+            Log.d("ListsViewModel", "Calling GetUserListsUseCase...")
+            // Call the Use Case
+            val result = getUserListsUseCase() // Simplified call
 
-                // Call the suspend function which returns Result
-                val userListsResult: Result<List<SesameList>> = listRepository.getUserLists(user.id)
-
-                // Handle the Result
-                userListsResult.onSuccess { lists ->
-                    // Success case: update state with the actual list data
-                    _uiState.value = ListsUiState.Success(lists)
-                }.onError { exception ->
-                    // Error case: update state with the error message
-                    _uiState.value = ListsUiState.Error(exception.message ?: "Failed to load lists")
-                }
-
-            } catch (e: Exception) {
-                // Catch other exceptions (e.g., during user fetching)
-                _uiState.value = ListsUiState.Error(e.message ?: "An unexpected error occurred")
+            // Handle the Result from the Use Case
+            result.onSuccess { lists ->
+                Log.d("ListsViewModel", "GetUserListsUseCase successful, received ${lists.size} lists.")
+                _uiState.value = ListsUiState.Success(lists)
+            }.onError { exception ->
+                Log.e("ListsViewModel", "GetUserListsUseCase failed: ${exception.message}")
+                _uiState.value = ListsUiState.Error(exception.message ?: "Failed to load lists")
             }
         }
     }
 
     fun deleteList(listId: String) {
+        // Keep delete logic here, calling the repository directly is fine for simple actions
         viewModelScope.launch {
-            try {
-                // Call the suspend fun returning Result
-                val deleteResult = listRepository.deleteList(listId)
-                deleteResult.onSuccess {
-                    // Reload lists after successful deletion
-                    loadLists()
-                }.onError { exception ->
-                    // Optionally update UI state with a temporary deletion error message
-                    // For now, just print log or ignore for simplicity
-                    println("Failed to delete list $listId: ${exception.message}")
-                    // You might want to emit a temporary error state or event here
-                }
-            } catch (e: Exception) {
-                // Handle unexpected deletion errors
-                println("Exception deleting list $listId: ${e.message}")
-                // Maybe emit an error state
+            Log.d("ListsViewModel", "Attempting to delete list: $listId")
+            val deleteResult = listRepository.deleteList(listId) // Assume repo handles IO etc.
+            deleteResult.onSuccess {
+                Log.d("ListsViewModel", "Delete successful for $listId, reloading lists.")
+                loadLists() // Reload lists after successful deletion
+            }.onError { exception ->
+                Log.e("ListsViewModel", "Failed to delete list $listId: ${exception.message}")
+                // Optionally update UI state with a temporary deletion error message
+                // For now, just logging. Could emit a separate event/state.
+                // _uiState.value = ListsUiState.Error("Failed to delete: ${exception.message}") // Or handle differently
             }
         }
     }
@@ -85,3 +71,6 @@ class ListsViewModel @Inject constructor(
         loadLists()
     }
 }
+
+// ListsUiState remains the same
+// sealed class ListsUiState { ... }

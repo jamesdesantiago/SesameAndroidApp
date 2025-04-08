@@ -1,38 +1,49 @@
 // presentation/viewmodels/ListDetailsViewModel.kt
 package com.gazzel.sesameapp.presentation.viewmodels
 
-import androidx.lifecycle.SavedStateHandle // Import SavedStateHandle
+import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gazzel.sesameapp.data.service.PlaceUpdate
-// Import consolidated ListApiService
-import com.gazzel.sesameapp.data.service.ListApiService // Adjust import
-// Import TokenProvider (Create this class first)
-import com.gazzel.sesameapp.domain.auth.TokenProvider // Adjust import path
-import com.gazzel.sesameapp.domain.model.ListResponse
-import com.gazzel.sesameapp.domain.model.ListUpdate
-import dagger.hilt.android.lifecycle.HiltViewModel // Import HiltViewModel
+// Import Domain Model and Use Cases
+import com.gazzel.sesameapp.domain.model.SesameList // <<< Use Domain Model
+import com.gazzel.sesameapp.domain.usecase.GetListDetailsUseCase // <<< Use Case
+import com.gazzel.sesameapp.domain.usecase.UpdateListUseCase // <<< Use Case
+import com.gazzel.sesameapp.domain.usecase.UpdatePlaceNotesUseCase // <<< Use Case
+import com.gazzel.sesameapp.domain.usecase.DeleteListUseCase // <<< Use Case
+import com.gazzel.sesameapp.domain.usecase.DeletePlaceItemUseCase // <<< Use Case
+// Import Result and extensions
+import com.gazzel.sesameapp.domain.util.Result
+import com.gazzel.sesameapp.domain.util.onError
+import com.gazzel.sesameapp.domain.util.onSuccess
+// Other necessary imports
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update // Use update for state modification
 import kotlinx.coroutines.launch
-import javax.inject.Inject // Import Inject
-import android.util.Log
+import javax.inject.Inject
 
-@HiltViewModel // Add Hilt annotation
-class ListDetailsViewModel @Inject constructor( // Use @Inject constructor
-    private val savedStateHandle: SavedStateHandle, // Inject SavedStateHandle
-    private val listService: ListApiService, // Inject consolidated service
-    private val tokenProvider: TokenProvider // Inject TokenProvider
+@HiltViewModel
+class ListDetailsViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
+    // Inject Use Cases
+    private val getListDetailsUseCase: GetListDetailsUseCase,     // <<< Inject
+    private val updateListUseCase: UpdateListUseCase,           // <<< Inject
+    private val updatePlaceNotesUseCase: UpdatePlaceNotesUseCase, // <<< Inject
+    private val deleteListUseCase: DeleteListUseCase,           // <<< Inject
+    private val deletePlaceItemUseCase: DeletePlaceItemUseCase    // <<< Inject
+    // Remove ListApiService and TokenProvider direct injection
 ) : ViewModel() {
 
-    // Get listId from navigation arguments via SavedStateHandle
-    private val listId: String = savedStateHandle.get<String>("listId") ?: ""
+    private val listId: String = savedStateHandle.get<String>(com.gazzel.sesameapp.presentation.navigation.Screen.ListDetail.ARG_LIST_ID) ?: ""
 
-    private val _detail = MutableStateFlow<ListResponse?>(null) // Start as null
-    val detail: StateFlow<ListResponse?> = _detail.asStateFlow()
+    // --- CHANGE State to hold Domain Model ---
+    private val _detail = MutableStateFlow<SesameList?>(null) // <<< CHANGE Type to SesameList?
+    val detail: StateFlow<SesameList?> = _detail.asStateFlow() // <<< Expose SesameList?
 
-    // ... (isLoading, errorMessage, deleteSuccess states remain the same) ...
+    // --- Loading/Error/Success states remain the same ---
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -50,152 +61,160 @@ class ListDetailsViewModel @Inject constructor( // Use @Inject constructor
     }
 
     private fun fetchListDetail() {
-        if (listId.isEmpty()) return // Don't fetch if ID is invalid
+        if (listId.isEmpty()) return
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
-            val token = tokenProvider.getToken() // Use TokenProvider
-            if (token != null) {
-                try {
-                    // Ensure method names match consolidated ListApiService
-                    val response = listService.getListDetail(listId = listId, token = "Bearer $token")
-                    if (response.isSuccessful) {
-                        _detail.value = response.body()
-                    } else {
-                        // ... (error handling) ...
-                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                        _errorMessage.value = "Failed to fetch details: ${response.code()} ${response.message()}"
-                        Log.e("ListDetailsVM", "Fetch error: ${response.code()} - $errorBody")
-                    }
-                } catch (e: Exception) {
-                    // ... (exception handling) ...
-                    _errorMessage.value = "Exception fetching details: ${e.localizedMessage}"
-                    Log.e("ListDetailsVM", "Fetch exception", e)
-                } finally {
-                    _isLoading.value = false
-                }
-            } else {
-                // ... (auth error handling) ...
-                _errorMessage.value = "Authentication error: Unable to get token"
-                Log.w("ListDetailsVM", "TokenProvider returned null")
-                _isLoading.value = false // Ensure loading stops
+            Log.d("ListDetailsVM", "Fetching details via UseCase for list $listId")
+
+            // Call Use Case
+            val result = getListDetailsUseCase(listId)
+
+            // Handle Result<SesameList>
+            result.onSuccess { sesameList ->
+                _detail.value = sesameList // <<< Store Domain Model
+                Log.d("ListDetailsVM", "Successfully fetched details for list $listId")
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to fetch details"
+                Log.e("ListDetailsVM", "Fetch error via UseCase: ${exception.message}", exception)
             }
+            _isLoading.value = false // Set loading false regardless of outcome
         }
     }
 
-    // --- Refactor other methods (updateListPrivacy, updateListName, etc.) ---
-    // Replace `getValidToken()` with `tokenProvider.getToken()`
-    // Ensure they use the injected consolidated `listService`
-    // Example:
+    // --- Refactor update methods to use Use Cases ---
+
     fun updateListPrivacy() {
-        val currentDetail = _detail.value ?: return // Need current state
+        val currentList = _detail.value ?: return
         viewModelScope.launch {
-            val token = tokenProvider.getToken() // Use provider
-            if (token != null) {
-                _isLoading.value = true
-                _errorMessage.value = null
-                try {
-                    val newPrivacyStatus = !currentDetail.isPrivate
-                    val updateData = ListUpdate(isPrivate = newPrivacyStatus)
-                    val response = listService.updateList( // Use consolidated service
-                        listId = listId,
-                        update = updateData,
-                        token = "Bearer $token"
-                    )
-                    if (response.isSuccessful) {
-                        _detail.value = response.body() ?: currentDetail.copy(isPrivate = newPrivacyStatus) // Update local state optimistically or use response
-                    } else {
-                        // ... (error handling) ...
-                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                        _errorMessage.value = "Failed to update privacy: ${response.code()} ${response.message()}"
-                        Log.e("ListDetailsVM", "UpdatePrivacy error: ${response.code()} - $errorBody")
-                    }
-                } catch (e: Exception) {
-                    // ... (exception handling) ...
-                    _errorMessage.value = "Exception updating privacy: ${e.localizedMessage}"
-                    Log.e("ListDetailsVM", "UpdatePrivacy exception", e)
-                } finally {
-                    _isLoading.value = false
-                }
-            } else { /* auth error */ }
+            _isLoading.value = true
+            _errorMessage.value = null
+            val updatedList = currentList.copy(isPublic = !currentList.isPublic) // Create updated domain object
+            Log.d("ListDetailsVM", "Updating privacy via UseCase for list ${updatedList.id}")
+
+            val result = updateListUseCase(updatedList) // Call Use Case
+
+            result.onSuccess { updatedListFromServer ->
+                _detail.value = updatedListFromServer // Update state with result from use case
+                Log.d("ListDetailsVM", "Successfully updated privacy for list $listId")
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to update privacy"
+                Log.e("ListDetailsVM", "UpdatePrivacy error via UseCase: ${exception.message}", exception)
+            }
+            _isLoading.value = false
         }
     }
 
-    // Add updateListName, updatePlaceNotes, deleteList, deletePlace similarly,
-    // using tokenProvider and the consolidated listService.
+    fun updateListName(newName: String) {
+        val currentList = _detail.value ?: return
+        if (newName == currentList.title || newName.isBlank()) return // No change or invalid
 
-    // Example deleteList
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            val updatedList = currentList.copy(title = newName)
+            Log.d("ListDetailsVM", "Updating name via UseCase for list ${updatedList.id}")
+
+            val result = updateListUseCase(updatedList) // Call Use Case
+
+            result.onSuccess { updatedListFromServer ->
+                _detail.value = updatedListFromServer // Update state with result
+                Log.d("ListDetailsVM", "Successfully updated name for list $listId")
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to update name"
+                Log.e("ListDetailsVM", "UpdateName error via UseCase: ${exception.message}", exception)
+            }
+            _isLoading.value = false
+        }
+    }
+
+
+    fun updatePlaceNotes(placeId: String, note: String?) { // Note can be null to clear it
+        if (listId.isEmpty() || placeId.isEmpty()) {
+            _errorMessage.value = "Invalid List or Place ID for updating notes."
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            Log.d("ListDetailsVM", "Updating notes via UseCase for place $placeId")
+
+            // Call Use Case
+            val result = updatePlaceNotesUseCase(placeId, note)
+
+            result.onSuccess { updatedPlaceItem ->
+                Log.d("ListDetailsVM", "Successfully updated notes for place $placeId. Updating local state.")
+                // Update the specific place item within the _detail state
+                _detail.update { currentList ->
+                    currentList?.copy(
+                        places = currentList.places.map {
+                            if (it.id == updatedPlaceItem.id) updatedPlaceItem else it
+                        }
+                    )
+                }
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to update notes"
+                Log.e("ListDetailsVM", "UpdateNotes error via UseCase: ${exception.message}", exception)
+            }
+            _isLoading.value = false
+        }
+    }
+
     fun deleteList() {
-        if (listId.isEmpty()) return
+        if (listId.isEmpty()) {
+            _errorMessage.value = "Invalid List ID for deletion."
+            return
+        }
         viewModelScope.launch {
-            val token = tokenProvider.getToken()
-            if (token != null) {
-                _isLoading.value = true
-                _errorMessage.value = null
-                _deleteSuccess.value = false // Reset delete success flag
-                try {
-                    // Use consolidated service
-                    val response = listService.deleteList(listId = listId, token = "Bearer $token")
-                    if (response.isSuccessful || response.code() == 204) {
-                        _deleteSuccess.value = true // Signal success
-                        Log.d("ListDetailsVM", "List $listId deleted successfully.")
-                    } else {
-                        // ... (error handling) ...
-                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                        _errorMessage.value = "Failed to delete list: ${response.code()} ${response.message()}"
-                        Log.e("ListDetailsVM", "DeleteList error: ${response.code()} - $errorBody")
-                    }
-                } catch (e: Exception) {
-                    // ... (exception handling) ...
-                    _errorMessage.value = "Exception deleting list: ${e.localizedMessage}"
-                    Log.e("ListDetailsVM", "DeleteList exception", e)
-                } finally {
-                    _isLoading.value = false
-                }
-            } else { /* auth error */ }
+            _isLoading.value = true
+            _errorMessage.value = null
+            _deleteSuccess.value = false
+            Log.d("ListDetailsVM", "Deleting list via UseCase: $listId")
+
+            // Call Use Case
+            val result = deleteListUseCase(listId)
+
+            result.onSuccess {
+                _deleteSuccess.value = true // Signal success for navigation
+                Log.d("ListDetailsVM", "List $listId deleted successfully.")
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to delete list"
+                Log.e("ListDetailsVM", "DeleteList error via UseCase: ${exception.message}", exception)
+            }
+            _isLoading.value = false
         }
     }
 
-    // Add updatePlaceNotes using the consolidated service
-    fun updatePlaceNotes(placeId: String, note: String) {
-        if (listId.isEmpty() || placeId.isEmpty()) return
+    fun deletePlace(placeId: String) {
+        if (listId.isEmpty() || placeId.isEmpty()) {
+            _errorMessage.value = "Invalid List or Place ID for deletion."
+            return
+        }
         viewModelScope.launch {
-            val token = tokenProvider.getToken()
-            if (token != null) {
-                _isLoading.value = true
-                _errorMessage.value = null
-                try {
-                    // Use data.service.PlaceUpdate or define a DTO
-                    val updateDto = PlaceUpdate(notes = note)
-                    // Use consolidated service (assuming updatePlace exists there)
-                    val response = listService.updatePlace( // Adjust method name if needed
-                        listId = listId,
-                        placeId = placeId,
-                        update = updateDto, // Pass the DTO
-                        token = "Bearer $token" // Adjust param name if needed
+            _isLoading.value = true // Indicate activity
+            _errorMessage.value = null
+            Log.d("ListDetailsVM", "Deleting place via UseCase: $placeId")
+
+            // Call Use Case
+            val result = deletePlaceItemUseCase(placeId)
+
+            result.onSuccess {
+                Log.d("ListDetailsVM", "Successfully deleted place $placeId. Updating local state.")
+                // Remove the place item from the local _detail state
+                _detail.update { currentList ->
+                    currentList?.copy(
+                        places = currentList.places.filterNot { it.id == placeId }
                     )
-                    if (response.isSuccessful || response.code() == 204) {
-                        fetchListDetail() // Refetch the whole list to see changes
-                    } else {
-                        // ... (error handling) ...
-                        val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                        _errorMessage.value = "Failed to update notes: ${response.code()} ${response.message()}"
-                        Log.e("ListDetailsVM", "UpdateNotes error: ${response.code()} - $errorBody")
-                    }
-                } catch (e: Exception) {
-                    // ... (exception handling) ...
-                    _errorMessage.value = "Exception updating notes: ${e.localizedMessage}"
-                    Log.e("ListDetailsVM", "UpdateNotes exception", e)
-                } finally {
-                    _isLoading.value = false
                 }
-            } else { /* auth error */ }
+            }.onError { exception ->
+                _errorMessage.value = exception.message ?: "Failed to delete place"
+                Log.e("ListDetailsVM", "DeletePlace error via UseCase: ${exception.message}", exception)
+            }
+            _isLoading.value = false
         }
     }
 
+    // Helper functions remain the same
     fun clearErrorMessage() { _errorMessage.value = null }
     fun resetDeleteSuccess() { _deleteSuccess.value = false }
-
-
 }
-// REMOVE ListDetailsViewModelFactory

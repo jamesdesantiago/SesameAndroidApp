@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.gazzel.sesameapp.data.local.AppDatabase
 import com.gazzel.sesameapp.data.local.dao.PlaceDao
 import com.gazzel.sesameapp.data.local.dao.UserDao
+import com.gazzel.sesameapp.data.local.dao.CacheDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,7 +26,10 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
-        ).build()
+        )
+            // Add migrations or fallback logic as needed
+            .fallbackToDestructiveMigration() // Example: Use destructive migration during development
+            .build()
     }
 
     @Provides
@@ -39,4 +43,11 @@ object DatabaseModule {
     fun provideUserDao(database: AppDatabase): UserDao {
         return database.userDao()
     }
-} 
+
+    // <<< ADD Explicit provider for CacheDao >>>
+    @Provides
+    @Singleton
+    fun provideCacheDao(database: AppDatabase): CacheDao {
+        return database.cacheDao()
+    }
+}

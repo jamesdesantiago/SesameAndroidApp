@@ -2,9 +2,12 @@ package com.gazzel.sesameapp.di
 
 import android.content.Context
 import com.gazzel.sesameapp.data.manager.DeviceIdManager
+import com.gazzel.sesameapp.data.manager.IDeviceIdManager
 import com.gazzel.sesameapp.data.manager.SecurityManager
+import com.gazzel.sesameapp.data.manager.ISecurityManager
 import com.gazzel.sesameapp.data.network.SecurityInterceptor
 import com.gazzel.sesameapp.domain.util.Logger
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -41,7 +44,7 @@ import javax.inject.Singleton
  */
 @Module
 @InstallIn(SingletonComponent::class)
-object SecurityModule {
+abstract class SecurityModule{
 
     /**
      * Provides a singleton instance of SecurityManager.
@@ -78,4 +81,16 @@ object SecurityModule {
     ): DeviceIdManager {
         return DeviceIdManager(context, securityManager, logger)
     }
+
+    @Binds
+    @Singleton
+    abstract fun bindSecurityManager(
+        impl: SecurityManager // Hilt knows how to inject this concrete class
+    ): ISecurityManager // Bind it to the interface
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceIdManager(
+        impl: DeviceIdManager // Hilt knows how to inject this concrete class
+    ): IDeviceIdManager // Bind it to the interface
 }
