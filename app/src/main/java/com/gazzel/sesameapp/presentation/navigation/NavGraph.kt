@@ -80,13 +80,14 @@ fun NavGraph(navController: NavHostController) {
 
         // List Detail Screen (with argument)
         composable(
-            route = Screen.ListDetail.routeWithArg,
+            route = Screen.ListDetail.routeWithArg, // Uses routeWithArg
             arguments = listOf(navArgument(Screen.ListDetail.ARG_LIST_ID) {
                 type = NavType.StringType
             })
-        ) { // ViewModel gets listId from SavedStateHandle automatically
+        ) { // NavController passed implicitly if needed, ViewModel gets ID via SavedStateHandle
             ListDetailScreen(navController = navController)
         }
+
 
         // Search Places Screen (with argument)
         composable(
