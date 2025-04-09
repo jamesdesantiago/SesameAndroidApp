@@ -149,6 +149,9 @@ dependencies {
     // SQL DB
     implementation(libs.androidx.sqlite.ktx)
 
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.gson)
+
     // Testing (Uncomment if needed)
     // ...
 }

@@ -23,6 +23,8 @@ interface PlaceRepository {
     suspend fun searchPlaces(query: String, location: LatLng, radius: Int): Result<List<Place>> // Search returns detailed Places
     suspend fun getNearbyPlaces(location: LatLng, radius: Int, type: String? = null): Result<List<Place>> // Nearby returns detailed Places
 
+    suspend fun getPlaceItemById(placeId: String): Result<PlaceItem>
+
     // --- Methods whose model type needs clarification ---
     // Does saving a place mean saving full details or just a list item? Assume detailed Place for now.
     suspend fun savePlace(place: Place): Result<String>

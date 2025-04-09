@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
 
+import com.google.gson.Gson
+
 // --- Optional: Security Interceptor ---
 // import com.gazzel.sesameapp.data.network.SecurityInterceptor // Uncomment if you have this and want to use it
 
@@ -108,5 +110,14 @@ object NetworkModule {
     @Singleton
     fun provideGooglePlacesService(@Named(GOOGLE_PLACES_RETROFIT) retrofit: Retrofit): GooglePlacesService {
         return retrofit.create(GooglePlacesService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson {
+        // Provide a standard Gson instance.
+        // If you need specific Gson configurations (like date adapters),
+        // you would use GsonBuilder here. For now, a default instance is fine.
+        return Gson()
     }
 }

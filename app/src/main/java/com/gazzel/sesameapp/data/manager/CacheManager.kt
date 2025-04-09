@@ -1,130 +1,103 @@
 package com.gazzel.sesameapp.data.manager
 
-// Imports NO LONGER needed:
-// import android.content.Context
-// import androidx.room.Room
-// import com.gazzel.sesameapp.data.local.AppDatabase
-// import dagger.hilt.android.qualifiers.ApplicationContext
-
-// Keep these imports:
-import com.gazzel.sesameapp.data.local.dao.CacheDao // Keep DAO import
+import android.util.Log
 import com.gazzel.sesameapp.data.local.CacheEntity
-import com.gazzel.sesameapp.data.manager.ICacheManager // Keep Interface import
-import com.gazzel.sesameapp.domain.exception.AppException.DatabaseException // Or use a specific CacheException
+import com.gazzel.sesameapp.data.local.dao.CacheDao
+import com.gazzel.sesameapp.domain.exception.AppException
 import com.gazzel.sesameapp.domain.util.Logger
+import com.google.gson.Gson // <<< Import
+import com.google.gson.JsonSyntaxException // <<< Import
+import java.lang.reflect.Type // <<< Import
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Log // Using Log directly or keep Logger
-
-// TODO: Import necessary serialization library (e.g., Gson, Moshi, Kotlinx Serialization)
-// import com.google.gson.Gson // Example for Gson
 
 @Singleton
 class CacheManager @Inject constructor(
-    private val cacheDao: CacheDao, // Inject DAO
-    private val logger: Logger
-    // private val gson: Gson // Example: Inject Gson for serialization
+    private val cacheDao: CacheDao, // Hilt provides this
+    private val logger: Logger,     // Hilt provides this
+    private val gson: Gson          // Hilt provides this
 ) : ICacheManager {
 
-    // <<< REMOVE the manual database creation >>>
-    /*
-    private val database: AppDatabase by lazy {
-        Room.databaseBuilder(
-            context, // context is no longer available here
-            AppDatabase::class.java,
-            AppDatabase.DATABASE_NAME
-        )
-        .fallbackToDestructiveMigration()
-        .build()
-    }
-    */
-
-    // Default expiry time constant (optional)
-    companion object {
-        private const val DEFAULT_EXPIRY_MS = 24 * 60 * 60 * 1000L // 24 hours
-    }
-
-    override suspend fun <T> cacheData(
-        key: String,
-        data: T,
-        expiryTime: Long // Removed default here, caller provides or uses constant
-    ) {
+    // Updated method signature
+    override suspend fun <T> cacheData(key: String, data: T, type: Type, expiryMs: Long) {
+        if (expiryMs <= 0) {
+            logger.warning("Attempted to cache data for key '$key' with non-positive expiry ($expiryMs ms). Skipping.")
+            return
+        }
         try {
-            // TODO: Implement proper serialization for 'data' based on type T
-            val serializedData: String = data.toString() // Placeholder - NEEDS REPLACEMENT
-            // Example using Gson (if injected):
-            // val serializedData = gson.toJson(data)
+            val serializedData: String = gson.toJson(data, type) // Use Gson
+            val absoluteExpiryTime = System.currentTimeMillis() + expiryMs // Calculate expiry
 
-            if (serializedData == null) {
-                logger.error(DatabaseException("Failed to serialize data for cache key: $key", null))
-                return // Don't insert null data
-            }
-
-            // Use the injected cacheDao
-            cacheDao.insert( // <<< FIX: Use injected cacheDao directly
+            cacheDao.insert(
                 CacheEntity(
                     key = key,
-                    data = serializedData, // Use the serialized string
-                    expiryTime = expiryTime
+                    data = serializedData,
+                    expiryTime = absoluteExpiryTime // Store absolute expiry
                 )
             )
-            logger.debug("Data cached for key: $key")
+            logger.debug("Data cached for key: $key. Expires at: $absoluteExpiryTime (~${expiryMs/1000}s)")
 
         } catch (e: Exception) {
-            // Log using DatabaseException or a new CacheException type
-            logger.error(DatabaseException("Failed to cache data for key: $key", e))
-            // Decide if you want to re-throw or just log
-            // throw DatabaseException("Failed to cache data for key: $key", e) // Optional re-throw
+            logger.error("Failed to cache data for key: $key", AppException.DatabaseException("Cache serialization/storage failed for key '$key'", e))
         }
     }
 
-    // Override annotation was missing
-    override suspend fun <T> getCachedData(key: String): T? { // <<< ADD override
-        return try {
-            // Use the injected cacheDao
-            val cache: CacheEntity? = cacheDao.getCache(key) // <<< FIX: Use injected cacheDao
-            if (cache != null && cache.expiryTime > System.currentTimeMillis()) {
-                // TODO: Implement proper deserialization for 'cache.data' based on type T
-                // Example using Gson (if injected and T's class is known/passed):
-                // return gson.fromJson(cache.data, object : TypeToken<T>() {}.type) // Needs type info
+    // Updated method signature
+    override suspend fun <T> getCachedData(key: String, type: Type): T? {
+        try {
+            val cache: CacheEntity? = cacheDao.getCache(key)
+            val currentTime = System.currentTimeMillis()
 
-                logger.warning("getCachedData for key '$key': Deserialization needed. Returning null.")
-                null // <<< Needs proper JSON deserialization
-            } else {
-                if (cache != null) {
-                    logger.debug("Cache expired for key: $key")
-                    // Optionally delete the expired item here proactively
-                    // cacheDao.deleteExpiredForKey(key, System.currentTimeMillis()) // Need DAO method for this
-                } else {
-                    logger.debug("Cache miss for key: $key")
-                }
-                null
+            if (cache == null) {
+                logger.debug("Cache miss for key: $key")
+                return null
             }
-        } catch (e: Exception) {
-            logger.error(DatabaseException("Failed to get cached data for key: $key", e))
-            null // Return null on error
+
+            if (cache.expiryTime <= currentTime) {
+                logger.debug("Cache expired for key: $key (Expired at ${cache.expiryTime}, Now: $currentTime)")
+                return null
+            }
+
+            // Cache exists and is valid, attempt deserialization
+            try {
+                val deserializedData: T? = gson.fromJson(cache.data, type) // Use Gson
+                if (deserializedData != null) {
+                    logger.debug("Cache hit for key: $key")
+                    return deserializedData
+                } else {
+                    logger.warning("getCachedData for key '$key': Deserialized data is null.", null)
+                    return null
+                }
+            } catch (jsonEx: JsonSyntaxException) {
+                logger.error("Cache JSON syntax error for key: $key. Data: ${cache.data.take(100)}...", AppException.DatabaseException("Invalid JSON in cache for key '$key'", jsonEx))
+                return null
+            } catch (e: Exception) {
+                logger.error("Cache deserialization error for key: $key", AppException.DatabaseException("Cache deserialization failed for key '$key'", e))
+                return null
+            }
+
+        } catch (dbEx: Exception) {
+            logger.error("Failed to retrieve cache from DB for key: $key", AppException.DatabaseException("Cache retrieval from DB failed for key '$key'", dbEx))
+            return null
         }
     }
 
-    // Override annotation was missing
-    override suspend fun clearExpiredCache() { // <<< ADD override
+    override suspend fun clearExpiredCache() {
         try {
-            // Use the injected cacheDao
-            cacheDao.deleteExpired(System.currentTimeMillis()) // <<< FIX: Use injected cacheDao
-            logger.info("Expired cache cleared.")
+            val currentTime = System.currentTimeMillis()
+            cacheDao.deleteExpired(currentTime)
+            logger.info("Expired cache cleared (items older than $currentTime).")
         } catch (e: Exception) {
-            logger.error(DatabaseException("Failed to clear expired cache", e))
+            logger.error("Failed to clear expired cache", AppException.DatabaseException("Failed to clear expired cache", e))
         }
     }
 
-    // Override annotation was missing
-    override suspend fun clearAllCache() { // <<< ADD override
+    override suspend fun clearAllCache() {
         try {
-            // Use the injected cacheDao
-            cacheDao.deleteAll() // <<< FIX: Use injected cacheDao
+            cacheDao.deleteAll()
             logger.info("All cache cleared.")
         } catch (e: Exception) {
-            logger.error(DatabaseException("Failed to clear all cache", e))
+            logger.error("Failed to clear all cache", AppException.DatabaseException("Failed to clear all cache", e))
         }
     }
 }

@@ -1,256 +1,294 @@
-// app/src/main/java/com/gazzel/sesameapp/data/repository/ListRepositoryImpl.kt
+// data/repository/UserRepositoryImpl.kt
 package com.gazzel.sesameapp.data.repository
 
-// Import the CORRECT consolidated service
-import com.gazzel.sesameapp.data.remote.ListApiService // <<< CHANGE
-
-// Import specific DTOs needed for requests
-
-// Import specific response DTOs
-import com.gazzel.sesameapp.data.remote.dto.ListDto // <<< CHANGE (Assuming this is the response DTO used by ListApiService)
-
-// Import domain models
-import com.gazzel.sesameapp.domain.model.SesameList
-
-// Import mappers (Ensure these exist and are correct)
-import com.gazzel.sesameapp.data.mapper.toDomainModel // Maps ListDto -> SesameList
-import com.gazzel.sesameapp.data.mapper.toServiceCreateDto // Maps SesameList -> ListCreateDto
-import com.gazzel.sesameapp.data.mapper.toServiceUpdateDto // Maps SesameList -> ListUpdateDto
-
-// Other necessary imports
-import com.gazzel.sesameapp.domain.auth.TokenProvider // <<< ADD for proper token handling
+import android.util.Log
+import com.gazzel.sesameapp.data.local.dao.UserDao
+import com.gazzel.sesameapp.data.remote.UserApiService
+import com.gazzel.sesameapp.data.remote.dto.UsernameSetDto // Corrected import name
+import com.gazzel.sesameapp.data.remote.dto.UserProfileUpdateDto
+import com.gazzel.sesameapp.data.remote.dto.PrivacySettingsUpdateDto
+import com.gazzel.sesameapp.domain.model.PrivacySettings
+import com.gazzel.sesameapp.domain.model.User as DomainUser
+import com.gazzel.sesameapp.domain.repository.UserRepository
+import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.exception.AppException
-import com.gazzel.sesameapp.domain.repository.ListRepository
 import com.gazzel.sesameapp.domain.util.Result
-import retrofit2.Response
+import com.gazzel.sesameapp.data.mapper.toDomain // Import mapper
+import com.gazzel.sesameapp.data.model.User as DataUser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import android.util.Log // For logging
+import com.google.firebase.auth.FirebaseAuth
+import com.gazzel.sesameapp.data.manager.ICacheManager // <<< Import ICacheManager
+import com.google.gson.reflect.TypeToken // <<< Import TypeToken
+import java.lang.reflect.Type // <<< Import Type
+import java.util.concurrent.TimeUnit // <<< For expiry
+
 
 @Singleton
-class ListRepositoryImpl @Inject constructor(
-    private val listApiService: ListApiService, // <<< CHANGE Service type
-    private val tokenProvider: TokenProvider // <<< INJECT TokenProvider
-    // TODO: Inject Dao if caching is needed
-) : ListRepository {
+class UserRepositoryImpl @Inject constructor(
+    private val userApiService: UserApiService,
+    private val userDao: UserDao,
+    private val tokenProvider: TokenProvider,
+    private val firebaseAuth: FirebaseAuth,
+    private val cacheManager: ICacheManager // <<< Inject CacheManager
+) : UserRepository {
 
-    // --- Generic API Call Handlers (Adjusted for DTO mapping) ---
+    // Cache constants
+    companion object {
+        private val USER_CACHE_EXPIRY_MS = TimeUnit.HOURS.toMillis(1) // 1 hour
+        private const val CURRENT_USER_CACHE_KEY = "current_user"
+        // Add other keys as needed (e.g., privacy settings)
+    }
 
-    // Handles API calls expecting a non-Unit DTO response, mapping it to a Domain model
-    private suspend fun <Dto, Domain> handleApiCallToDomain(
-        apiCall: suspend () -> Response<Dto>,
-        mapper: (Dto) -> Domain // Maps API DTO response to Domain model
-    ): Result<Domain> {
+    // --- Change getCurrentUser from Flow to suspend fun ---
+    override suspend fun getCurrentUser(): Result<DomainUser> {
+        Log.d("UserRepositoryImpl", "Attempting to fetch current user...")
+        val userType: Type = DataUser::class.java // Type for single user
+
+        // 1. Try Cache (using the specific key)
+        try {
+            val cachedUser = cacheManager.getCachedData<DataUser>(CURRENT_USER_CACHE_KEY, userType)
+            if (cachedUser != null) {
+                Log.d("UserRepositoryImpl", "Cache Hit: Returning cached current user")
+                return Result.success(cachedUser.toDomain()) // Map DataUser -> DomainUser
+            }
+            Log.d("UserRepositoryImpl", "Cache Miss: current user")
+        } catch (e: Exception) {
+            Log.e("UserRepositoryImpl", "Cache Get Error for current user", e)
+        }
+
+
+        // 2. Try Local DB (fallback if cache fails or misses)
+        try {
+            val localUser = withContext(Dispatchers.IO) { userDao.getCurrentUser() }
+            if (localUser != null) {
+                Log.d("UserRepositoryImpl", "DB Hit: Returning user from local DB.")
+                // Optionally cache the DB result before returning
+                cacheManager.cacheData(CURRENT_USER_CACHE_KEY, localUser, userType, USER_CACHE_EXPIRY_MS)
+                return Result.success(localUser.toDomain())
+            }
+            Log.d("UserRepositoryImpl", "DB Miss: current user")
+        } catch(e: Exception) {
+            Log.e("UserRepositoryImpl", "DB Get Error for current user", e)
+        }
+
+        // 3. Try Network (last resort)
         val token = tokenProvider.getToken()
         if (token == null) {
-            Log.w("ListRepositoryImpl", "Auth token is null, cannot make API call.")
+            Log.w("UserRepositoryImpl", "No token, cannot fetch user from network.")
             return Result.error(AppException.AuthException("User not authenticated"))
         }
-        val authorizationHeader = "Bearer $token" // Prepare header once
 
         return try {
-            // Pass the header or required token format to the actual API call lambda if needed
-            // Assuming the apiCall lambda itself handles using the token via closure or direct passing
-            Log.d("ListRepositoryImpl", "Executing API call...")
-            val response = apiCall() // Execute the actual Retrofit call
-            Log.d("ListRepositoryImpl", "API Response Code: ${response.code()}")
-
-            if (response.isSuccessful) {
-                response.body()?.let { body ->
-                    Result.success(mapper(body)) // Apply mapper here
-                } ?: Result.error(AppException.UnknownException("API success but response body was null"))
+            val response = withContext(Dispatchers.IO) {
+                userApiService.getCurrentUserProfile("Bearer $token")
+            }
+            if (response.isSuccessful && response.body() != null) {
+                val networkUser = response.body()!! // This is DataUser
+                Log.d("UserRepositoryImpl", "Network fetch successful.")
+                // Save to DB
+                withContext(Dispatchers.IO) { userDao.insertUser(networkUser) }
+                // Save to Cache
+                cacheManager.cacheData(CURRENT_USER_CACHE_KEY, networkUser, userType, USER_CACHE_EXPIRY_MS)
+                Result.success(networkUser.toDomain()) // Return mapped DomainUser
             } else {
-                Result.error(mapError(response.code(), response.errorBody()?.string()))
+                Log.w("UserRepositoryImpl", "Network fetch failed: ${response.code()}")
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
-            Log.e("ListRepositoryImpl", "API call exception", e)
-            Result.error(mapException(e))
+            Log.e("UserRepositoryImpl", "Network error fetching user", e)
+            Result.error(mapExceptionToAppException(e, "Failed to fetch user data"))
         }
     }
 
-    // Handles API calls expecting a List of DTOs response, mapping it to a List of Domain models
-    private suspend fun <Dto, Domain> handleListApiCallToDomain(
-        apiCall: suspend () -> Response<List<Dto>>,
-        mapper: (Dto) -> Domain // Maps a single DTO item to a Domain model item
-    ): Result<List<Domain>> {
-        val token = tokenProvider.getToken()
-        if (token == null) {
-            Log.w("ListRepositoryImpl", "Auth token is null, cannot make API call.")
-            return Result.error(AppException.AuthException("User not authenticated"))
-        }
-        val authorizationHeader = "Bearer $token"
+
+    override suspend fun updateUsername(username: String): Result<Unit> {
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
 
         return try {
-            Log.d("ListRepositoryImpl", "Executing List API call...")
-            val response = apiCall() // Execute the actual Retrofit call
-            Log.d("ListRepositoryImpl", "API List Response Code: ${response.code()}")
+            val response = withContext(Dispatchers.IO) {
+                userApiService.setUsername(
+                    authorization = "Bearer $token",
+                    request = UsernameSetDto(username = username) // Use correct DTO
+                )
+            }
 
             if (response.isSuccessful) {
-                // Map the list, handling null body gracefully
-                val domainList = response.body()?.map(mapper) ?: emptyList()
-                Result.success(domainList)
-            } else {
-                Result.error(mapError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Log.e("ListRepositoryImpl", "API List call exception", e)
-            Result.error(mapException(e))
-        }
-    }
-
-
-    // Handles API calls expecting Unit response (e.g., DELETE, simple POST/PUT)
-    private suspend fun handleUnitApiCall(
-        apiCall: suspend () -> Response<Unit>
-    ): Result<Unit> {
-        val token = tokenProvider.getToken()
-        if (token == null) {
-            Log.w("ListRepositoryImpl", "Auth token is null, cannot make API call.")
-            return Result.error(AppException.AuthException("User not authenticated"))
-        }
-        val authorizationHeader = "Bearer $token"
-
-        return try {
-            Log.d("ListRepositoryImpl", "Executing Unit API call...")
-            val response = apiCall() // Execute the actual Retrofit call
-            Log.d("ListRepositoryImpl", "API Unit Response Code: ${response.code()}")
-            if (response.isSuccessful || response.code() == 204) { // Allow 204 No Content
+                // Update local DB and Cache on success
+                withContext(Dispatchers.IO) {
+                    val localUser = userDao.getCurrentUser()
+                    if (localUser != null) {
+                        val updatedUser = localUser.copy(username = username)
+                        userDao.insertUser(updatedUser)
+                        // Update cache
+                        val userType: Type = DataUser::class.java
+                        cacheManager.cacheData(CURRENT_USER_CACHE_KEY, updatedUser, userType, USER_CACHE_EXPIRY_MS)
+                        Log.d("UserRepositoryImpl", "Local DB and Cache updated with new username.")
+                    } else {
+                        Log.w("UserRepositoryImpl", "Local user not found during username update cache.")
+                        // Invalidate cache if user not found locally?
+                        cacheManager.cacheData<DataUser?>(CURRENT_USER_CACHE_KEY, null, userType, -1L)
+                    }
+                }
                 Result.success(Unit)
             } else {
-                Result.error(mapError(response.code(), response.errorBody()?.string()))
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
-            Log.e("ListRepositoryImpl", "API Unit call exception", e)
-            Result.error(mapException(e))
+            Result.error(mapExceptionToAppException(e, "Failed to update username"))
         }
     }
 
-    // --- Implement ListRepository methods using new helpers and ListApiService ---
+    // --- Change checkUsername from Flow to suspend fun ---
+    override suspend fun checkUsername(): Result<Boolean> {
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
 
-    override suspend fun getUserLists(userId: String): Result<List<SesameList>> {
-        // Note: userId is not used if API relies solely on token
-        return handleListApiCallToDomain(
-            // Pass the actual service call lambda
-            apiCall = { listApiService.getUserLists("Bearer ${tokenProvider.getToken()!!}") }, // Assuming non-null token here after check in helper
-            mapper = { listDto: ListDto -> listDto.toDomainModel() } // Provide the mapping function
-        )
-        // .onSuccess { /* caching logic */ } // Keep caching if needed
-    }
+        return try {
+            val response = withContext(Dispatchers.IO) {
+                userApiService.checkUsername(authorization = "Bearer $token")
+            }
 
-    override suspend fun getPublicLists(): Result<List<SesameList>> {
-        return handleListApiCallToDomain(
-            apiCall = { listApiService.getPublicLists("Bearer ${tokenProvider.getToken()!!}") }, // Adjust token usage if needed for public
-            mapper = { listDto -> listDto. toDomainModel() }
-        )
-    }
-
-    override suspend fun getListById(id: String): Result<SesameList> {
-        return handleApiCallToDomain(
-            apiCall = { listApiService.getListDetail("Bearer ${tokenProvider.getToken()!!}", id) },
-            mapper = { listDto -> listDto.toDomainModel() }
-        )
-        // .onSuccess { /* caching logic */ }
-    }
-
-    override suspend fun createList(list: SesameList): Result<SesameList> {
-        val listCreateDto = list.toServiceCreateDto() // Map Domain -> Request DTO
-        return handleApiCallToDomain(
-            apiCall = { listApiService.createList("Bearer ${tokenProvider.getToken()!!}", listCreateDto) },
-            mapper = { listDto -> listDto.toDomainModel() } // Map Response DTO -> Domain
-        )
-        // .onSuccess { /* caching logic */ }
-    }
-
-    override suspend fun updateList(list: SesameList): Result<SesameList> {
-        val listUpdateDto = list.toServiceUpdateDto() // Map Domain -> Request DTO
-        return handleApiCallToDomain(
-            apiCall = { listApiService.updateList("Bearer ${tokenProvider.getToken()!!}", list.id, listUpdateDto) },
-            mapper = { listDto -> listDto.toDomainModel() } // Map Response DTO -> Domain
-        )
-        // .onSuccess { /* caching logic */ }
-    }
-
-    override suspend fun deleteList(id: String): Result<Unit> {
-        return handleUnitApiCall {
-            listApiService.deleteList("Bearer ${tokenProvider.getToken()!!}", id)
-        }
-        // .onSuccess { /* caching logic */ }
-    }
-
-    override suspend fun getRecentLists(limit: Int): Result<List<SesameList>> {
-        return handleListApiCallToDomain(
-            apiCall = { listApiService.getRecentLists("Bearer ${tokenProvider.getToken()!!}", limit) },
-            mapper = { listDto -> listDto.toDomainModel() }
-        )
-    }
-
-    override suspend fun searchLists(query: String): Result<List<SesameList>> {
-        // Handle blank query locally or let API decide
-        // if (query.isBlank()) { return getRecentLists() } // Keep local handling if desired
-        return handleListApiCallToDomain(
-            apiCall = { listApiService.searchLists("Bearer ${tokenProvider.getToken()!!}", query) },
-            mapper = { listDto -> listDto.toDomainModel() }
-        )
-    }
-
-    // --- REMOVE or Re-evaluate addPlaceToList ---
-    // This method signature doesn't align well with ListApiService.addPlace
-    // If it's about LINKING an existing place, a different API endpoint is needed.
-    // If it's about CREATING a place via API, that's PlaceRepository's job.
-    // Removing it for now. If needed, it requires rethinking.
-    override suspend fun addPlaceToList(listId: String, placeId: String): Result<Unit> {
-        Log.e("ListRepositoryImpl", "addPlaceToList(listId, placeId) is not supported via ListApiService. Check if linking is intended.")
-        return Result.error(AppException.UnknownException("Operation addPlaceToList(listId, placeId) not supported by current API service setup."))
-        // --- Old code attempting creation (incorrect place for this logic) ---
-        /*
-        // Needs PlaceCreateDto, but only has placeId. Where does the rest of the data come from?
-        // This logic belongs in PlaceRepository or requires a different API endpoint.
-        val placeCreateDto = PlaceCreateDto(placeId = placeId, name = "??", address = "??", latitude = 0.0, longitude = 0.0) // Incomplete data
-        return handleUnitApiCall {
-             listApiService.addPlace("Bearer ${tokenProvider.getToken()!!}", listId, placeCreateDto)
-        }
-        .onSuccess { /* caching logic if applicable */ }
-        */
-    }
-
-    override suspend fun removePlaceFromList(listId: String, placeId: String): Result<Unit> {
-        return handleUnitApiCall {
-            listApiService.removePlaceFromList("Bearer ${tokenProvider.getToken()!!}", listId, placeId)
-        }
-        // .onSuccess { /* caching logic */ }
-    }
-
-    override suspend fun followList(listId: String): Result<Unit> {
-        return handleUnitApiCall {
-            listApiService.followList("Bearer ${tokenProvider.getToken()!!}", listId)
+            if (response.isSuccessful && response.body() != null) {
+                val needsUsername = response.body()!!.needsUsername
+                Log.d("UserRepositoryImpl", "API check username successful: NeedsUsername=$needsUsername")
+                Result.success(needsUsername)
+            } else {
+                Log.e("UserRepositoryImpl", "API check username failed: ${response.code()}.")
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Log.e("UserRepositoryImpl", "Exception checking username.", e)
+            Result.error(mapExceptionToAppException(e, "Failed to check username status"))
         }
     }
 
-    override suspend fun unfollowList(listId: String): Result<Unit> {
-        return handleUnitApiCall {
-            listApiService.unfollowList("Bearer ${tokenProvider.getToken()!!}", listId)
+    // --- Change getPrivacySettings return type ---
+    override suspend fun getPrivacySettings(): Result<PrivacySettings> { // <<< Changed return type
+        // TODO: Implement Caching for Privacy Settings if desired
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
+
+        return try {
+            val response = withContext(Dispatchers.IO) {
+                userApiService.getPrivacySettings("Bearer $token")
+            }
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.error(mapExceptionToAppException(e, "Failed to get privacy settings"))
         }
     }
 
-    // --- Error Mapping Helpers (Keep as is) ---
-    private fun mapError(code: Int, errorBody: String?): AppException {
-        Log.e("ListRepositoryImpl", "API Error $code: ${errorBody ?: "Unknown error"}")
-        return when (code) {
-            400 -> AppException.ValidationException(errorBody ?: "Bad Request")
-            401 -> AppException.AuthException(errorBody ?: "Unauthorized")
-            403 -> AppException.AuthException(errorBody ?: "Forbidden")
-            404 -> AppException.ResourceNotFoundException(errorBody ?: "Not Found")
-            in 500..599 -> AppException.NetworkException("Server Error ($code): ${errorBody ?: ""}", code)
-            else -> AppException.NetworkException("Network Error ($code): ${errorBody ?: ""}", code)
+    override suspend fun signOut(): Result<Unit> {
+        return try {
+            Log.d("UserRepositoryImpl", "Signing out user...")
+            // Clear cache first
+            try {
+                cacheManager.clearAllCache() // Or at least clear user-specific keys
+                Log.d("UserRepositoryImpl", "User cache cleared.")
+            } catch (cacheEx: Exception) {
+                Log.e("UserRepositoryImpl", "Failed to clear cache during sign out", cacheEx)
+            }
+            // Sign out Firebase
+            withContext(Dispatchers.Default) {
+                firebaseAuth.signOut()
+            }
+            // Clear local DB
+            withContext(Dispatchers.IO) {
+                userDao.deleteAllUsers()
+            }
+            // Clear token provider cache
+            tokenProvider.clearToken()
+            Log.d("UserRepositoryImpl", "Sign out successful.")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("UserRepositoryImpl", "Sign out failed", e)
+            Result.error(mapExceptionToAppException(e, "Sign out failed"))
         }
     }
 
-    private fun mapException(e: Exception): AppException {
-        Log.e("ListRepositoryImpl", "Network/Unknown error: ${e.message ?: "Unknown exception"}", e)
-        return when(e) {
-            is java.io.IOException -> AppException.NetworkException("Network IO error: ${e.message}", cause = e)
-            // Add checks for specific API exceptions if needed (e.g., AuthenticationException)
-            else -> AppException.UnknownException(e.message ?: "An unknown error occurred", e)
+    override suspend fun updateProfile(displayName: String?, profilePictureUrl: String?): Result<Unit> {
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
+        if (displayName == null && profilePictureUrl == null) return Result.success(Unit) // Nothing to update
+
+        return try {
+            val updateDto = UserProfileUpdateDto(displayName = displayName, profilePicture = profilePictureUrl)
+            val response = withContext(Dispatchers.IO) {
+                userApiService.updateUserProfile("Bearer $token", updateDto) // Call actual API
+            }
+
+            if (response.isSuccessful && response.body() != null) {
+                val updatedNetworkUser = response.body()!! // This is DataUser
+                Log.d("UserRepositoryImpl", "API profile update successful, updating cache and DB.")
+                // Update local DB and Cache
+                withContext(Dispatchers.IO) {
+                    userDao.insertUser(updatedNetworkUser) // Update DB
+                    // Update cache
+                    val userType: Type = DataUser::class.java
+                    cacheManager.cacheData(CURRENT_USER_CACHE_KEY, updatedNetworkUser, userType, USER_CACHE_EXPIRY_MS)
+                }
+                Result.success(Unit)
+            } else {
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.error(mapExceptionToAppException(e, "Failed to update profile"))
         }
     }
+
+    // Helper for updating privacy settings (invalidate cache on success?)
+    private suspend fun updatePrivacySetting(updateDto: PrivacySettingsUpdateDto): Result<Unit> {
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
+        return try {
+            val response = withContext(Dispatchers.IO) {
+                userApiService.updatePrivacySettings("Bearer $token", updateDto)
+            }
+            if (response.isSuccessful) {
+                // TODO: Invalidate privacy settings cache if implemented
+                Log.d("UserRepositoryImpl", "API privacy update successful.")
+                Result.success(Unit)
+            } else {
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.error(mapExceptionToAppException(e, "Failed to update privacy setting"))
+        }
+    }
+    // Other privacy update methods call the helper...
+    override suspend fun updateProfileVisibility(isPublic: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(profileIsPublic = isPublic))
+    override suspend fun updateListVisibility(arePublic: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(listsArePublic = arePublic))
+    override suspend fun updateAnalytics(enabled: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(allowAnalytics = enabled))
+
+    override suspend fun deleteAccount(): Result<Unit> {
+        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
+        return try {
+            val response = withContext(Dispatchers.IO) {
+                userApiService.deleteAccount("Bearer $token")
+            }
+            if (response.isSuccessful || response.code() == 204) {
+                Log.d("UserRepositoryImpl", "API account deletion successful. Clearing local data.")
+                // Perform sign out which clears DB/Cache/Token
+                signOut()
+                Result.success(Unit)
+            } else {
+                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+            }
+        } catch (e: Exception) {
+            Result.error(mapExceptionToAppException(e, "Failed to delete account"))
+        }
+    }
+
+    // --- Error Mapping Helpers ---
+    private fun mapApiError(code: Int, errorBody: String?): AppException { /* ... Keep implementation ... */ }
+    private fun mapExceptionToAppException(e: Throwable, defaultMessage: String): AppException { /* ... Keep implementation ... */ }
+
 }
+
+// Mapper (Keep as is)
+// fun DataUser.toDomain(): DomainUser { ... }
