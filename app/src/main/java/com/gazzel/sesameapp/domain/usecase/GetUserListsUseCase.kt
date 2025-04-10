@@ -9,6 +9,8 @@ import com.gazzel.sesameapp.domain.exception.AppException
 import kotlinx.coroutines.flow.firstOrNull // Use firstOrNull for safety
 import javax.inject.Inject
 import android.util.Log // Optional logging
+import com.gazzel.sesameapp.domain.util.flatMap
+
 
 class GetUserListsUseCase @Inject constructor(
     private val listRepository: ListRepository,
@@ -16,18 +18,15 @@ class GetUserListsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(): Result<List<SesameList>> {
         Log.d("GetUserListsUseCase", "Executing...")
-        return try {
-            // 1. Get current user ID safely
-            val user = userRepository.getCurrentUser().firstOrNull()
-                ?: return Result.error(AppException.AuthException("User not found or not authenticated."))
+        // 1. Get current user ID safely
+        // Call the suspend fun returning Result
+        val userResult = userRepository.getCurrentUser()
 
+        // Use flatMap to proceed only if user fetch was successful
+        return userResult.flatMap { user ->
             // 2. Fetch lists using the user ID
             Log.d("GetUserListsUseCase", "Fetching lists for user: ${user.id}")
-            listRepository.getUserLists(user.id) // This already returns Result<List<SesameList>>
-        } catch (e: Exception) {
-            Log.e("GetUserListsUseCase", "Error fetching user lists", e)
-            // Catch potential errors from collecting the user flow or other unexpected issues
-            Result.error(AppException.UnknownException("Failed to get user lists", e))
-        }
+            listRepository.getUserLists(user.id) // This already returns Result
+        } // flatMap automatically propagates the error from userResult if it failed
     }
 }

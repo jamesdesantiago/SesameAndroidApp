@@ -1,40 +1,20 @@
 package com.gazzel.sesameapp.presentation.screens.profile
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.* // Use wildcard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Person // Keep
+import androidx.compose.material3.* // Use wildcard
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // Import
+import androidx.compose.ui.text.style.TextAlign // Import
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.R // Import R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,110 +23,166 @@ fun EditProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var displayName by remember { mutableStateOf("") }
-    var profilePictureUrl by remember { mutableStateOf("") }
-    var showImagePicker by remember { mutableStateOf(false) }
 
+    // Local state for text fields - initialized when Success state is first observed
+    var displayName by remember { mutableStateOf("") }
+    var profilePictureUrl by remember { mutableStateOf("") } // Keep this if you plan image picking
+
+    var showImagePicker by remember { mutableStateOf(false) }
+    var saveAttempted by remember { mutableStateOf(false) } // Track if save was clicked
+
+    // Update local state when the user data loads from the ViewModel
     LaunchedEffect(uiState) {
         if (uiState is ProfileUiState.Success) {
             val user = (uiState as ProfileUiState.Success).user
-            displayName = user.displayName ?: ""
-            profilePictureUrl = user.profilePicture ?: ""
+            // Only set initial value if not already set by user input
+            if (displayName.isEmpty() && user.displayName != null) {
+                displayName = user.displayName ?: ""
+            }
+            if (profilePictureUrl.isEmpty() && user.profilePicture != null) {
+                profilePictureUrl = user.profilePicture ?: ""
+            }
+
+            // If save was attempted and now we are back to success, navigate back
+            if(saveAttempted){
+                navController.navigateUp()
+                saveAttempted = false // Reset flag
+            }
+        }
+    }
+
+    // Show Snackbar on Error
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState) {
+        if (uiState is ProfileUiState.Error) {
+            val errorState = uiState as ProfileUiState.Error
+            snackbarHostState.showSnackbar(
+                message = errorState.message, // Show specific error
+                duration = SnackbarDuration.Short
+            )
+            saveAttempted = false // Reset flag on error
+            // Consider resetting to previous state? VM currently stays in Error until next action.
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }, // Add SnackbarHost
         topBar = {
             TopAppBar(
-                title = { Text("Edit Profile") },
+                title = { Text(stringResource(R.string.edit_profile_title)) }, // <<< Use String Res
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back_button)) // <<< Use String Res
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Profile picture
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Profile picture",
+        // Show loading overlay if saving
+        val isLoading = uiState is ProfileUiState.Loading
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clickable { showImagePicker = true }
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Display name
-            OutlinedTextField(
-                value = displayName,
-                onValueChange = { displayName = it },
-                label = { Text("Display Name") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Save button
-            Button(
-                onClick = {
-                    viewModel.updateProfile(
-                        displayName = displayName.takeIf { it.isNotBlank() },
-                        profilePicture = profilePictureUrl.takeIf { it.isNotBlank() }
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !(uiState is ProfileUiState.Loading)
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (uiState is ProfileUiState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                // Profile picture placeholder/Image
+                // TODO: Replace Icon with Coil Image loading if profilePictureUrl is implemented
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clickable(enabled = !isLoading) { showImagePicker = true } // Disable click when loading
+                        .align(Alignment.CenterHorizontally) // Center the box itself
+                    // Add background/border if needed
+                    ,
+                    contentAlignment = Alignment.Center
+                ){
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = stringResource(R.string.cd_profile_picture_placeholder), // <<< Use String Res
+                        modifier = Modifier.size(120.dp), // Icon fills the Box
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant // Placeholder tint
                     )
-                } else {
-                    Text("Save Changes")
+                    // Overlay a small edit icon if desired
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = stringResource(R.string.cd_edit_profile_picture), // <<< Use String Res
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
-            }
 
-            if (uiState is ProfileUiState.Error) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = (uiState as ProfileUiState.Error).message,
-                    color = MaterialTheme.colorScheme.error
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Display name
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text(stringResource(R.string.label_display_name)) }, // <<< Use String Res
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !isLoading // Disable when loading
                 )
-            }
-        }
-    }
 
-    // Image picker dialog
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Save button
+                Button(
+                    onClick = {
+                        saveAttempted = true // Mark that save was clicked
+                        viewModel.updateProfile(
+                            // Send null if blank, otherwise send the value
+                            displayName = displayName.trim().takeIf { it.isNotEmpty() },
+                            profilePicture = profilePictureUrl.trim().takeIf { it.isNotEmpty() } // Assuming URL for now
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading // Disable when loading
+                ) {
+                    // Show indicator inside button when loading
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary, // Ensure contrast
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(stringResource(R.string.button_save_changes)) // <<< Use String Res
+                    }
+                }
+
+                // Error message is now handled by Snackbar
+
+            } // End Column
+        } // End Box
+    } // End Scaffold
+
+    // Image picker dialog (Content uses string resources)
     if (showImagePicker) {
         AlertDialog(
             onDismissRequest = { showImagePicker = false },
-            title = { Text("Update Profile Picture") },
-            text = { Text("Choose a new profile picture") },
+            title = { Text(stringResource(R.string.dialog_update_picture_title)) }, // <<< Use String Res
+            text = { Text(stringResource(R.string.dialog_update_picture_text)) }, // <<< Use String Res
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // TODO: Implement image picking
+                        // TODO: Implement image picking logic (e.g., launch gallery/camera intent)
+                        // On result, update the profilePictureUrl state variable and maybe call VM immediately or wait for Save button
                         showImagePicker = false
                     }
                 ) {
-                    Text("Choose Image")
+                    Text(stringResource(R.string.dialog_update_picture_confirm_button)) // <<< Use String Res
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showImagePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.dialog_button_cancel)) // <<< Use String Res (Reused)
                 }
             }
         )
     }
-} 
+}

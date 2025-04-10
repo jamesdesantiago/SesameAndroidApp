@@ -1,49 +1,20 @@
 package com.gazzel.sesameapp.presentation.screens.help
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.* // Use wildcard
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.* // Use wildcard
+import androidx.compose.material3.* // Use wildcard
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // Import
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.R // Import R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,16 +29,16 @@ fun HelpScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Help & Support") },
+                title = { Text(stringResource(R.string.help_screen_title)) }, // <<< Use String Res
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back_button)) // <<< Use String Res
                     }
                 }
             )
         }
     ) { paddingValues ->
-        when (uiState) {
+        when (val state = uiState) { // Use variable
             is HelpUiState.Loading -> {
                 Box(
                     modifier = Modifier
@@ -79,8 +50,8 @@ fun HelpScreen(
                 }
             }
             is HelpUiState.Success -> {
-                val faqs = (uiState as HelpUiState.Success).faqs
-                
+                val faqs = state.faqs
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -98,63 +69,67 @@ fun HelpScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = "Quick Actions",
+                                    text = stringResource(R.string.help_quick_actions_title), // <<< Use String Res
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Button(
                                     onClick = { showContactSupportDialog = true },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Default.Email, contentDescription = null)
+                                    Icon(Icons.Default.Email, contentDescription = null) // Icon is decorative
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Contact Support")
+                                    Text(stringResource(R.string.help_button_contact_support)) // <<< Use String Res
                                 }
                                 Button(
                                     onClick = { showFeedbackDialog = true },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Default.MailOutline, contentDescription = null)
+                                    Icon(Icons.Default.MailOutline, contentDescription = null) // Icon is decorative
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Send Feedback")
+                                    Text(stringResource(R.string.help_button_send_feedback)) // <<< Use String Res
                                 }
                             }
                         }
                     }
 
-                    // FAQs
+                    // FAQs Title
                     item {
                         Text(
-                            text = "Frequently Asked Questions",
-                            style = MaterialTheme.typography.titleLarge
+                            text = stringResource(R.string.help_faq_title), // <<< Use String Res
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 8.dp) // Add padding if needed
                         )
                     }
 
-                    items(faqs) { faq ->
+                    // FAQs List
+                    items(faqs, key = { it.question }) { faq -> // Use question as key if unique
                         var expanded by remember { mutableStateOf(false) }
-                        
+                        val arrowIconDesc = if (expanded) stringResource(R.string.cd_show_less) else stringResource(R.string.cd_show_more) // <<< Use String Res
+
                         Card {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clickable { expanded = !expanded } // Make whole column clickable
                                     .padding(16.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { expanded = !expanded },
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = faq.question,
-                                        style = MaterialTheme.typography.titleMedium
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp) // Allow text wrapping
                                     )
                                     Icon(
                                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = if (expanded) "Show less" else "Show more"
+                                        contentDescription = arrowIconDesc
                                     )
                                 }
 
+                                // AnimatedVisibility can make this smoother
                                 if (expanded) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
@@ -174,10 +149,18 @@ fun HelpScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = (uiState as HelpUiState.Error).message,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) { // Added Column for Button
+                        Text(
+                            text = state.message, // Keep specific error
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                        // Optionally add retry for FAQ loading
+                        Button(onClick = { viewModel.loadFAQs() }) {
+                            Text(stringResource(R.string.button_retry))
+                        }
+                    }
                 }
             }
         }
@@ -190,7 +173,7 @@ fun HelpScreen(
 
         AlertDialog(
             onDismissRequest = { showContactSupportDialog = false },
-            title = { Text("Contact Support") },
+            title = { Text(stringResource(R.string.dialog_contact_support_title)) }, // <<< Use String Res
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -199,13 +182,14 @@ fun HelpScreen(
                     OutlinedTextField(
                         value = subject,
                         onValueChange = { subject = it },
-                        label = { Text("Subject") },
-                        modifier = Modifier.fillMaxWidth()
+                        label = { Text(stringResource(R.string.dialog_contact_support_label_subject)) }, // <<< Use String Res
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
                     OutlinedTextField(
                         value = message,
                         onValueChange = { message = it },
-                        label = { Text("Message") },
+                        label = { Text(stringResource(R.string.dialog_contact_support_label_message)) }, // <<< Use String Res
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 4
                     )
@@ -216,14 +200,15 @@ fun HelpScreen(
                     onClick = {
                         viewModel.sendSupportEmail(subject, message)
                         showContactSupportDialog = false
-                    }
+                    },
+                    enabled = subject.isNotBlank() && message.isNotBlank() // Basic validation
                 ) {
-                    Text("Send")
+                    Text(stringResource(R.string.dialog_button_send)) // <<< Use String Res
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showContactSupportDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.dialog_button_cancel)) // <<< Use String Res
                 }
             }
         )
@@ -235,12 +220,12 @@ fun HelpScreen(
 
         AlertDialog(
             onDismissRequest = { showFeedbackDialog = false },
-            title = { Text("Send Feedback") },
+            title = { Text(stringResource(R.string.dialog_send_feedback_title)) }, // <<< Use String Res
             text = {
                 OutlinedTextField(
                     value = feedback,
                     onValueChange = { feedback = it },
-                    label = { Text("Your feedback") },
+                    label = { Text(stringResource(R.string.dialog_send_feedback_label_feedback)) }, // <<< Use String Res
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4
                 )
@@ -250,16 +235,17 @@ fun HelpScreen(
                     onClick = {
                         viewModel.sendFeedback(feedback)
                         showFeedbackDialog = false
-                    }
+                    },
+                    enabled = feedback.isNotBlank() // Basic validation
                 ) {
-                    Text("Send")
+                    Text(stringResource(R.string.dialog_button_send)) // <<< Use String Res
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFeedbackDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.dialog_button_cancel)) // <<< Use String Res
                 }
             }
         )
     }
-} 
+}

@@ -6,7 +6,6 @@ import com.gazzel.sesameapp.data.manager.IDeviceIdManager
 import com.gazzel.sesameapp.data.manager.SecurityManager
 import com.gazzel.sesameapp.data.manager.ISecurityManager
 import com.gazzel.sesameapp.data.network.SecurityInterceptor
-import com.gazzel.sesameapp.domain.util.Logger
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -47,23 +46,6 @@ import javax.inject.Singleton
 abstract class SecurityModule{
 
     /**
-     * Provides a singleton instance of SecurityManager.
-     * This manager handles encryption and secure storage operations.
-     *
-     * @param context The application context
-     * @param logger The Logger instance
-     * @return The configured SecurityManager
-     */
-    @Provides
-    @Singleton
-    fun provideSecurityManager(
-        @ApplicationContext context: Context,
-        logger: Logger
-    ): SecurityManager {
-        return SecurityManager(context, logger)
-    }
-
-    /**
      * Provides a singleton instance of DeviceIdManager.
      * This manager handles secure device identification.
      *
@@ -77,7 +59,6 @@ abstract class SecurityModule{
     fun provideDeviceIdManager(
         @ApplicationContext context: Context,
         securityManager: SecurityManager,
-        logger: Logger
     ): DeviceIdManager {
         return DeviceIdManager(context, securityManager, logger)
     }

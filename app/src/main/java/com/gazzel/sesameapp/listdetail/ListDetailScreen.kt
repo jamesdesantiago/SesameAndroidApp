@@ -3,27 +3,19 @@ package com.gazzel.sesameapp.presentation.screens.listdetail
 
 import android.util.Log
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add // Keep needed icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 // Import ViewModel and NEW State
-import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsViewModel
-import com.gazzel.sesameapp.presentation.viewmodels.ListDetailsUiState // <<< IMPORT NEW STATE
+import com.gazzel.sesameapp.presentation.screens.lists.ListDetailsViewModel
+import com.gazzel.sesameapp.presentation.screens.lists.ListDetailsUiState // <<< IMPORT NEW STATE
 // Import Domain models
-import com.gazzel.sesameapp.domain.model.SesameList
-import com.gazzel.sesameapp.domain.model.PlaceItem
 // Import components from the sub-package
 import com.gazzel.sesameapp.presentation.components.listdetail.*
 // Map related imports

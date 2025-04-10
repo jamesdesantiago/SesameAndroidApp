@@ -1,91 +1,80 @@
 // app/src/main/java/com/gazzel/sesameapp/presentation/screens/lists/ListsScreen.kt
-// (Content moved from UserListsActivity and updated)
 package com.gazzel.sesameapp.presentation.screens.lists
 
-// Keep necessary imports, remove Activity, Intent, lifecycleScope, manual service/token imports
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.* // Import needed icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource // <<< Import pluralStringResource
+import androidx.compose.ui.res.stringResource    // <<< Import stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-// Import domain model and navigation Screen
+import com.gazzel.sesameapp.R // <<< Import R
 import com.gazzel.sesameapp.domain.model.SesameList
 import com.gazzel.sesameapp.presentation.navigation.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Remove ListCache object
-// object ListCache { ... }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListsScreen( // Renamed from UserListsScreen for consistency
+fun ListsScreen(
     navController: NavController,
-    viewModel: ListsViewModel = hiltViewModel() // Inject ViewModel
+    viewModel: ListsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var selectedList by remember { mutableStateOf<SesameList?>(null) }
-    // Removed context, scope - use NavController and viewModelScope
 
-    // Fetch lists on initial composition and when lifecycle state changes (e.g., returning to screen)
-    // This replaces onResume logic
-    LaunchedEffect(Unit) { // Or use lifecycle events if needed: LocalLifecycleOwner.current.lifecycle.observe...
-        viewModel.refresh() // Load lists initially
+    // Load lists initially
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
     }
-
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Lists") },
+                title = { Text(stringResource(R.string.lists_title)) }, // <<< Use String Resource
                 actions = {
-                    IconButton(onClick = {
-                        // Navigate to Composable CreateListScreen
-                        navController.navigate(Screen.CreateList.route)
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create List")
+                    IconButton(onClick = { navController.navigate(Screen.CreateList.route) }) {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_create_list)) // <<< Use String Resource
                     }
-                    // Sign out might belong in a Profile/Settings screen now
-                    // TextButton(onClick = { /* viewModel.signOut() ? */ }) { Text("Sign Out") }
                 }
             )
         },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") },
-                    selected = false, // This screen is 'Lists'
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_home_icon)) }, // <<< Use String Resource
+                    selected = false,
                     onClick = { navController.navigate(Screen.Home.route) { launchSingleTop = true; popUpTo(Screen.Home.route) } }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.List, contentDescription = "Lists") },
-                    label = { Text("Lists") },
-                    selected = true, // This is the Lists screen
+                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_lists_icon)) }, // <<< Use String Resource
+                    selected = true,
                     onClick = { /* Already here */ }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Friends") },
-                    label = { Text("Friends") },
+                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_friends_icon)) }, // <<< Use String Resource
                     selected = false,
                     onClick = { navController.navigate(Screen.Friends.route) { launchSingleTop = true; popUpTo(Screen.Home.route) } }
                 )
             }
         }
-        // FAB removed as Add action is in TopAppBar
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) { // Add main content Box
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             when (val state = uiState) {
                 is ListsUiState.Loading -> {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -93,56 +82,52 @@ fun ListsScreen( // Renamed from UserListsScreen for consistency
                 is ListsUiState.Success -> {
                     val userLists = state.userLists
                     if (userLists.isEmpty()) {
-                        EmptyListsView(modifier = Modifier.fillMaxSize())
+                        // Pass string resource IDs to EmptyListsView
+                        EmptyListsView(
+                            modifier = Modifier.fillMaxSize(),
+                            titleResId = R.string.lists_empty_title, // <<< Pass Res ID
+                            subtitleResId = R.string.lists_empty_subtitle // <<< Pass Res ID
+                        )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical=16.dp), // Padding for list
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(userLists, key = { list -> list.id }) { list ->
-                                // Use the updated ListItem composable
-                                ListItem(
-                                    headlineContent = { Text(list.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
-                                    supportingContent = { Text(list.description, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
-                                    trailingContent = {
-                                        Row {
-                                            // Share button (implement later if needed)
-                                            // IconButton(onClick = { /* TODO */ }) { Icon(Icons.Filled.Share, "Share") }
-                                            IconButton(onClick = {
-                                                selectedList = list
-                                                showDeleteDialog = true
-                                            }) {
-                                                Icon(Icons.Default.Delete, contentDescription = "Delete")
-                                            }
-                                        }
-                                    },
-                                    placeCount = list.places.size, // Assuming places are part of domain model
+                                // Pass data to the updated ListItem composable
+                                ListsListItem( // <<< Renamed for clarity
+                                    title = list.title,
+                                    description = list.description,
+                                    placeCount = list.places.size,
                                     updatedTimestamp = list.updatedAt,
                                     onItemClick = {
-                                        // Navigate using NavController and route from Screen object
                                         navController.navigate(Screen.ListDetail.createRoute(list.id))
+                                    },
+                                    onDeleteClick = {
+                                        selectedList = list
+                                        showDeleteDialog = true
                                     }
+                                    // Add onShareClick if needed
                                 )
                             }
                         }
                     }
                 }
                 is ListsUiState.Error -> {
-                    // Display error message centered
                     Column(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
-                    ){
+                    ) {
                         Text(
-                            state.message,
+                            state.message, // Keep specific error from VM
                             color = MaterialTheme.colorScheme.error,
                             textAlign = TextAlign.Center
                         )
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { viewModel.refresh() }) {
-                            Text("Retry")
+                            Text(stringResource(R.string.button_retry)) // <<< Use String Resource
                         }
                     }
                 }
@@ -152,42 +137,44 @@ fun ListsScreen( // Renamed from UserListsScreen for consistency
 
     // --- Delete confirmation dialog ---
     if (showDeleteDialog && selectedList != null) {
-        val listToDelete = selectedList!! // Capture non-null value
+        val listToDelete = selectedList!!
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false; selectedList = null },
-            title = { Text("Delete List") },
-            text = { Text("Are you sure you want to delete \"${listToDelete.title}\"? This cannot be undone.") }, // Clarify action
+            title = { Text(stringResource(R.string.dialog_delete_list_title)) }, // <<< Use String Resource
+            // Use formatted string for text
+            text = { Text(stringResource(R.string.dialog_delete_list_text, listToDelete.title)) }, // <<< Use String Resource
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteList(listToDelete.id) // Call ViewModel delete
+                        viewModel.deleteList(listToDelete.id)
                         showDeleteDialog = false
                         selectedList = null
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) // Use error color
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.dialog_delete_confirm_button)) // <<< Use String Resource
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false; selectedList = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.dialog_delete_cancel_button)) // <<< Use String Resource
                 }
             }
         )
     }
 } // End ListsScreen
 
-// --- ListItem Composable (Keep as previously defined) ---
+// --- Renamed ListItem to ListsListItem ---
 @Composable
-private fun ListItem(
-    headlineContent: @Composable () -> Unit,
-    supportingContent: @Composable () -> Unit,
-    trailingContent: @Composable () -> Unit,
+private fun ListsListItem( // <<< Renamed
+    title: String,
+    description: String,
     placeCount: Int,
     updatedTimestamp: Long,
     onItemClick: () -> Unit,
+    onDeleteClick: () -> Unit, // <<< Added delete callback
     modifier: Modifier = Modifier
+    // Add onShareClick: () -> Unit if implementing share
 ) {
     Card(
         modifier = modifier
@@ -196,7 +183,6 @@ private fun ListItem(
         shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        // ... (Implementation from previous ListsScreen example) ...
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,30 +193,48 @@ private fun ListItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                    headlineContent()
-                }
-                Box {
-                    trailingContent()
+                // Use Text directly with provided strings
+                Text(
+                    text = title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium, // Slightly larger title
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                )
+                // Trailing Icons
+                Row {
+                    // IconButton(onClick = { /* onShareClick() */ }) { // Uncomment if Share implemented
+                    //    Icon(Icons.Filled.Share, stringResource(R.string.cd_share_list_icon))
+                    // }
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_list)) // <<< Use String Resource
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Box(modifier = Modifier.fillMaxWidth()) {
-                supportingContent()
-            }
+            // Use Text directly with provided strings
+            Text(
+                text = description,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp) // Give space for 2 lines
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Use pluralStringResource for item count
                 Text(
-                    text = if (placeCount == 1) "$placeCount item" else "$placeCount items",
+                    text = pluralStringResource(R.plurals.list_item_count, placeCount, placeCount), // <<< Use Plural
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Updated ${formatDate(updatedTimestamp)}",
+                    text = stringResource(R.string.list_updated_date, formatDate(updatedTimestamp)), // <<< Use formatted string
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -239,29 +243,32 @@ private fun ListItem(
     }
 }
 
-// --- EmptyListsView (Keep as previously defined) ---
+// --- Updated EmptyListsView to use Res IDs ---
 @Composable
-private fun EmptyListsView(modifier: Modifier = Modifier) {
-    // ... (Implementation from previous ListsScreen example) ...
+private fun EmptyListsView(
+    modifier: Modifier = Modifier,
+    titleResId: Int,
+    subtitleResId: Int
+) {
     Column(
         modifier = modifier.padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.SentimentVeryDissatisfied, // Example icon
-            contentDescription = null,
+            imageVector = Icons.Default.SentimentVeryDissatisfied, // Keep or choose another
+            contentDescription = null, // Decorative
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "No lists yet",
+            text = stringResource(titleResId), // <<< Use Res ID
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Tap the '+' button in the top bar\nto create your first list!",
+            text = stringResource(subtitleResId), // <<< Use Res ID
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -269,11 +276,11 @@ private fun EmptyListsView(modifier: Modifier = Modifier) {
     }
 }
 
-// --- formatDate (Keep as previously defined) ---
+// --- formatDate (Keep as is) ---
 private fun formatDate(timestamp: Long): String {
-    // ... (Implementation from previous ListsScreen example) ...
-    if (timestamp <= 0L) return "..."
+    if (timestamp <= 0L) return "..." // Or handle differently
     val date = Date(timestamp)
+    // Consider using more relative time formatting for recent items
     val formatter = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
     return formatter.format(date)
 }

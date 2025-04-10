@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.gazzel.sesameapp.presentation.navigation.Screen
+import androidx.compose.ui.res.stringResource
+import com.gazzel.sesameapp.R
 
 @Composable
 fun UsernameSetupScreen(
@@ -57,7 +59,7 @@ fun UsernameSetupScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Choose a Username",
+            text = stringResource(R.string.username_setup_title),
             style = MaterialTheme.typography.headlineMedium
         )
 
@@ -70,7 +72,7 @@ fun UsernameSetupScreen(
                 // username = newUsername.filter { it.isLetterOrDigit() }
                 username = newUsername
             },
-            label = { Text("Username") },
+            label = { Text(stringResource(R.string.label_username)) },
             modifier = Modifier.fillMaxWidth(),
             // Check against the new Loading state
             enabled = uiState !is UsernameSetupState.Loading, // <-- Change State check
@@ -109,12 +111,12 @@ fun UsernameSetupScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = username.isNotBlank() && username.length >= 3 // Basic validation
                 ) {
-                    Text("Continue")
+                    Text(stringResource(R.string.button_continue))
                 }
             }
             is UsernameSetupState.Success -> {
                 // Optionally show a temporary success indicator or just rely on navigation
-                Text("Username set successfully!") // Or just let navigation handle it
+                Text(stringResource(R.string.username_setup_success)) // Or just let navigation handle it
             }
         }
     }

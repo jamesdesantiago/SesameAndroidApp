@@ -152,6 +152,6 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.gson)
 
-    // Testing (Uncomment if needed)
-    // ...
+    // Logging
+    implementation(libs.timber)
 }

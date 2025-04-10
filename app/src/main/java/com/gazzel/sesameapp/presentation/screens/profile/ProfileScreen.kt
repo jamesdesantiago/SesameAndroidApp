@@ -1,44 +1,20 @@
 package com.gazzel.sesameapp.presentation.screens.profile
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.* // Use wildcard
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.* // Use wildcard
+import androidx.compose.material3.* // Use wildcard
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector // Import
+import androidx.compose.ui.res.stringResource // Import
+import androidx.compose.ui.text.style.TextAlign // Import
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.R // Import R
 import com.gazzel.sesameapp.presentation.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,19 +26,32 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showSignOutDialog by remember { mutableStateOf(false) }
 
+    // Handle navigation away when SignedOut state is reached
+    LaunchedEffect(uiState) {
+        if (uiState is ProfileUiState.SignedOut) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Home.route) { inclusive = true } // Pop back stack to Home, then Login replaces it
+            }
+            // Don't need to reset VM state as the screen is being left
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile") },
+                title = { Text(stringResource(R.string.profile_title)) }, // <<< Use String Res
                 navigationIcon = {
+                    // Conditionally show back arrow if this screen isn't a top-level destination
+                    // If it IS a top-level destination (like from a bottom bar), you might hide it
+                    // or change its behavior. Assuming it can be navigated back from for now.
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back_button)) // <<< Use String Res
                     }
                 }
             )
         }
     ) { paddingValues ->
-        when (uiState) {
+        when (val state = uiState) { // Use variable
             is ProfileUiState.Loading -> {
                 Box(
                     modifier = Modifier
@@ -74,8 +63,8 @@ fun ProfileScreen(
                 }
             }
             is ProfileUiState.Success -> {
-                val user = (uiState as ProfileUiState.Success).user
-                
+                val user = state.user
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -83,83 +72,96 @@ fun ProfileScreen(
                         .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Profile header
+                    // Profile header - TODO: Replace with actual Image loading
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Profile picture",
+                        contentDescription = stringResource(R.string.cd_profile_picture), // <<< Use String Res
                         modifier = Modifier.size(120.dp)
                     )
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Text(
-                        text = user.displayName ?: user.username ?: "User",
+                        text = user.displayName ?: user.username ?: stringResource(R.string.default_username), // <<< Use String Res for default
                         style = MaterialTheme.typography.headlineMedium
                     )
-                    
-                    Text(
-                        text = user.email ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    // Show email only if available
+                    if (user.email.isNotBlank()) {
+                        Text(
+                            text = user.email,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // Profile actions
+                    // Profile actions using reusable composable
                     ProfileActionButton(
                         icon = Icons.Default.Edit,
-                        label = "Edit Profile",
+                        labelResId = R.string.profile_action_edit, // <<< Pass Res ID
                         onClick = { navController.navigate(Screen.EditProfile.route) }
                     )
-
+                    Divider(modifier = Modifier.padding(horizontal = 16.dp)) // Add divider
                     ProfileActionButton(
                         icon = Icons.Default.Notifications,
-                        label = "Notifications",
+                        labelResId = R.string.profile_action_notifications, // <<< Pass Res ID
                         onClick = { navController.navigate(Screen.Notifications.route) }
                     )
-
+                    Divider(modifier = Modifier.padding(horizontal = 16.dp))
                     ProfileActionButton(
                         icon = Icons.Default.Lock,
-                        label = "Privacy Settings",
+                        labelResId = R.string.profile_action_privacy, // <<< Pass Res ID
                         onClick = { navController.navigate(Screen.PrivacySettings.route) }
                     )
-
+                    Divider(modifier = Modifier.padding(horizontal = 16.dp))
                     ProfileActionButton(
                         icon = Icons.Default.Info,
-                        label = "Help & Support",
+                        labelResId = R.string.profile_action_help, // <<< Pass Res ID
                         onClick = { navController.navigate(Screen.Help.route) }
                     )
 
-                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.weight(1f)) // Push sign out to bottom
 
                     // Sign out button
                     Button(
                         onClick = { showSignOutDialog = true },
+                        modifier = Modifier.fillMaxWidth(), // Make full width
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError // Ensure text contrast
                         )
                     ) {
-                        Text("Sign Out")
+                        Text(stringResource(R.string.profile_button_sign_out)) // <<< Use String Res
                     }
                 }
             }
             is ProfileUiState.Error -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
+                Column( // Wrap Error in a Column for Button
+                    modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ){
+                    Icon(Icons.Filled.Error, contentDescription=null, tint=MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = (uiState as ProfileUiState.Error).message,
-                        color = MaterialTheme.colorScheme.error
+                        text = state.message, // Keep specific error
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
                     )
+                    Spacer(Modifier.height(16.dp))
+                    // Add retry button to reload profile
+                    Button(onClick = { viewModel.loadUserProfile() }) {
+                        Text(stringResource(R.string.button_retry))
+                    }
                 }
             }
             is ProfileUiState.SignedOut -> {
-                // Option 2: Navigate immediately (though NavController shouldn't be called directly here)
-                // Consider triggering navigation via a LaunchedEffect observing the state change
-                // For now, just handle the case to satisfy 'when'
+                // Handled by LaunchedEffect, show placeholder briefly if needed
+                Box(Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.signing_out))
+                }
             }
         }
     }
@@ -168,38 +170,41 @@ fun ProfileScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign Out") },
-            text = { Text("Are you sure you want to sign out?") },
+            icon = { Icon(Icons.Filled.Logout, contentDescription = null) }, // Add icon
+            title = { Text(stringResource(R.string.dialog_sign_out_title)) }, // <<< Use String Res
+            text = { Text(stringResource(R.string.dialog_sign_out_text)) }, // <<< Use String Res
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.signOut()
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(Screen.Home.route) { inclusive = true }
-                        }
-                    }
+                        showSignOutDialog = false // Dismiss first
+                        viewModel.signOut() // Trigger VM action (nav handled by LaunchedEffect)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Sign Out")
+                    Text(stringResource(R.string.profile_button_sign_out)) // <<< Use String Res
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.dialog_button_cancel)) // <<< Use String Res
                 }
             }
         )
     }
 }
 
+// Updated ProfileActionButton to use String Resource ID
+@OptIn(ExperimentalMaterial3Api::class) // Needed for ListItem
 @Composable
 private fun ProfileActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
+    icon: ImageVector,
+    labelResId: Int, // Pass Resource ID
     onClick: () -> Unit
 ) {
     ListItem(
-        headlineContent = { Text(label) },
-        leadingContent = { Icon(icon, contentDescription = label) },
+        headlineContent = { Text(stringResource(labelResId)) }, // <<< Use String Res
+        leadingContent = { Icon(icon, contentDescription = null) }, // Label describes it
         modifier = Modifier.clickable(onClick = onClick)
+            .fillMaxWidth() // Ensure full clickable width
     )
-} 
+}

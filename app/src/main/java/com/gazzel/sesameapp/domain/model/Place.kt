@@ -26,22 +26,3 @@ data class OpeningHours(
     val closeTime: String,
     val isOpen: Boolean
 )
-
-// DTOs for API Interaction (Potentially move to data layer if not used elsewhere in domain)
-data class PlaceCreate(
-    val placeId: String,
-    val name: String,
-    val address: String,
-    val latitude: Double,
-    val longitude: Double,
-    val rating: String? = null, // Rating is String? here
-    val notes: String? = null,
-    val visitStatus: String? = null
-)
-
-data class PlaceUpdate(
-    val name: String? = null,
-    val address: String? = null,
-    val rating: String? = null, // Rating is Double? here
-    val notes: String? = null
-)

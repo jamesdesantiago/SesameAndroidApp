@@ -1,50 +1,22 @@
 package com.gazzel.sesameapp.presentation.screens.friends
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.* // Use wildcard
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.* // Use wildcard
+import androidx.compose.material3.* // Use wildcard
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource // Import
+import androidx.compose.ui.res.stringResource // Import
+import androidx.compose.ui.text.style.TextAlign // Import
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.R // Import R
 import com.gazzel.sesameapp.domain.model.Friend
 import com.gazzel.sesameapp.presentation.navigation.Screen
 
@@ -58,12 +30,34 @@ fun FriendsScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     Scaffold(
-        topBar = { /* ... TopAppBar ... */ },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.friends_title)) } // <<< Use String Resource
+                // Add back navigation if this screen isn't a top-level destination
+                // navigationIcon = { IconButton(onClick = { navController.navigateUp() }) { Icon(Icons.Default.ArrowBack, "Back") } }
+            )
+        },
         bottomBar = {
+            // Assuming this is a top-level destination accessible from bottom nav
             NavigationBar {
-                NavigationBarItem( /* Home */ selected = false, onClick = { navController.navigate(Screen.Home.route) } )
-                NavigationBarItem( /* Lists */ selected = false, onClick = { navController.navigate(Screen.Lists.route) } )
-                NavigationBarItem( /* Friends */ selected = true, onClick = { } )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_home_icon)) },
+                    selected = false,
+                    onClick = { navController.navigate(Screen.Home.route) { launchSingleTop = true; popUpTo(Screen.Home.route){ inclusive = true } } }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_lists_icon)) },
+                    selected = false,
+                    onClick = { navController.navigate(Screen.Lists.route) { launchSingleTop = true; popUpTo(Screen.Home.route){ inclusive = true } } }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                    label = { Text(stringResource(R.string.cd_friends_icon)) },
+                    selected = true, // This is the Friends screen
+                    onClick = { /* Already here */ }
+                )
             }
         }
     ) { paddingValues ->
@@ -72,48 +66,56 @@ fun FriendsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search bar (unchanged, interacts with viewModel.searchFriends)
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = {
                     searchQuery = it
-                    viewModel.searchFriends(it) // ViewModel handles search logic
+                    viewModel.searchFriends(it)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                placeholder = { Text("Search friends") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true
+                placeholder = { Text(stringResource(R.string.friends_search_placeholder)) }, // <<< Use String Resource
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, // Placeholder is descriptive enough
+                singleLine = true,
+                trailingIcon = { // Add clear button
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            viewModel.searchFriends("") // Trigger reload/clear search in VM
+                        }) {
+                            Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.cd_clear_search_icon)) // <<< Use String Resource
+                        }
+                    }
+                }
             )
 
             when (val state = uiState) {
                 is FriendsUiState.Loading -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().padding(bottom = 56.dp), // Avoid overlap with potential bottom bar space
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
                     }
                 }
                 is FriendsUiState.Success -> {
-                    val friends = (uiState as FriendsUiState.Success).friends
+                    val friends = state.friends
                     if (friends.isEmpty()) {
                         EmptyFriendsView(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().padding(bottom = 56.dp), // Avoid overlap
                             searchQuery = searchQuery
                         )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp), // Adjust padding
+                            verticalArrangement = Arrangement.spacedBy(12.dp) // Slightly more space
                         ) {
-                            items(friends) { friend ->
-                                // Pass follow/unfollow actions to ViewModel
+                            items(friends, key = { it.id }) { friend ->
                                 FriendItem(
                                     friend = friend,
-                                    onFollowClick = { isFollowing -> // Lambda parameter indicating current status
+                                    onFollowClick = { isFollowing ->
                                         if (isFollowing) {
                                             viewModel.unfollowUser(friend.id)
                                         } else {
@@ -126,14 +128,22 @@ fun FriendsScreen(
                     }
                 }
                 is FriendsUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Column( // Wrap Error in a Column for Button
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ){
                         Text(
-                            text = (uiState as FriendsUiState.Error).message,
-                            color = MaterialTheme.colorScheme.error
+                            text = state.message, // Keep specific message
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
                         )
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = {
+                            if (searchQuery.isBlank()) viewModel.loadFriends() else viewModel.searchFriends(searchQuery)
+                        }) {
+                            Text(stringResource(R.string.button_retry)) // <<< Use String Resource
+                        }
                     }
                 }
             }
@@ -144,29 +154,33 @@ fun FriendsScreen(
 @Composable
 private fun FriendItem(
     friend: Friend,
-    onFollowClick: (isFollowing: Boolean) -> Unit // Modified lambda
+    onFollowClick: (isFollowing: Boolean) -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp) // Add subtle elevation
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = 12.dp, horizontal = 16.dp), // Adjust padding
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile picture
+            // Profile picture placeholder
             Surface(
                 modifier = Modifier.size(48.dp),
-                shape = CircleShape
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer // Use theme color for placeholder
             ) {
-                // TODO: Add profile picture loading
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // TODO: Replace with actual image loading (e.g., using Coil)
+                // if (friend.profilePicture != null) { AsyncImage(...) } else { Icon(...) }
+                Box(contentAlignment = Alignment.Center){
+                    Text(
+                        text = (friend.displayName ?: friend.username).firstOrNull()?.uppercase() ?: "?",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -177,33 +191,48 @@ private fun FriendItem(
             ) {
                 Text(
                     text = friend.displayName ?: friend.username,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                // Display username only if different from display name or if display name is null
+                if (friend.displayName != friend.username && friend.username.isNotBlank()) {
+                    Text(
+                        text = "@${friend.username}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Use plural string for lists count
                 Text(
-                    text = "@${friend.username}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "${friend.listCount} lists",
+                    text = pluralStringResource(R.plurals.friend_list_count, friend.listCount, friend.listCount), // <<< Use Plural
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Follow button
+            Spacer(modifier = Modifier.width(8.dp)) // Add space before button
+
+            // Follow/Following button
             Button(
                 onClick = { onFollowClick(friend.isFollowing) },
+                // Adapt size and shape for better visual balance
+                modifier = Modifier.height(40.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                shape = MaterialTheme.shapes.small, // Or shapes.medium
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (friend.isFollowing) 
-                        MaterialTheme.colorScheme.surfaceVariant 
-                    else 
+                    containerColor = if (friend.isFollowing)
+                        MaterialTheme.colorScheme.secondaryContainer // Use secondary container for 'Following'
+                    else
                         MaterialTheme.colorScheme.primary
-                )
+                ),
+                // Disable button briefly if action is pending? (Requires tracking in VM/UI)
             ) {
                 Text(
-                    text = if (friend.isFollowing) "Following" else "Follow",
-                    style = MaterialTheme.typography.labelMedium
+                    text = if (friend.isFollowing) stringResource(R.string.button_following) else stringResource(R.string.button_follow), // <<< Use String Resources
+                    style = MaterialTheme.typography.labelMedium // Use appropriate style
                 )
             }
         }
@@ -216,29 +245,31 @@ private fun EmptyFriendsView(
     searchQuery: String
 ) {
     Column(
-        modifier = modifier.padding(16.dp),
+        modifier = modifier.padding(horizontal = 32.dp, vertical = 16.dp), // More padding
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = null,
+            imageVector = Icons.Filled.People, // More relevant icon?
+            contentDescription = null, // Decorative
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = if (searchQuery.isBlank()) "No friends yet" else "No friends found",
-            style = MaterialTheme.typography.titleLarge
+            text = if (searchQuery.isBlank()) stringResource(R.string.friends_empty_title) else stringResource(R.string.friends_empty_search_title), // <<< Use String Resources
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = if (searchQuery.isBlank()) 
-                "Start following people to see their lists" 
-            else 
-                "Try a different search",
+            text = if (searchQuery.isBlank())
+                stringResource(R.string.friends_empty_subtitle)
+            else
+                stringResource(R.string.friends_empty_search_subtitle), // <<< Use String Resources
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
     }
-} 
+}

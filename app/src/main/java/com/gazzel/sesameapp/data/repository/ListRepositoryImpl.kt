@@ -1,294 +1,347 @@
-// data/repository/UserRepositoryImpl.kt
+// app/src/main/java/com/gazzel/sesameapp/data/repository/ListRepositoryImpl.kt
 package com.gazzel.sesameapp.data.repository
 
 import android.util.Log
-import com.gazzel.sesameapp.data.local.dao.UserDao
-import com.gazzel.sesameapp.data.remote.UserApiService
-import com.gazzel.sesameapp.data.remote.dto.UsernameSetDto // Corrected import name
-import com.gazzel.sesameapp.data.remote.dto.UserProfileUpdateDto
-import com.gazzel.sesameapp.data.remote.dto.PrivacySettingsUpdateDto
-import com.gazzel.sesameapp.domain.model.PrivacySettings
-import com.gazzel.sesameapp.domain.model.User as DomainUser
-import com.gazzel.sesameapp.domain.repository.UserRepository
+import com.gazzel.sesameapp.data.manager.ICacheManager
+import com.gazzel.sesameapp.data.mapper.toDomainModel
+import com.gazzel.sesameapp.data.mapper.toServiceCreateDto
+import com.gazzel.sesameapp.data.mapper.toServiceUpdateDto
+import com.gazzel.sesameapp.data.remote.ListApiService
+import com.gazzel.sesameapp.data.remote.dto.ListDto
 import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.exception.AppException
+import com.gazzel.sesameapp.domain.model.SesameList
+import com.gazzel.sesameapp.domain.repository.ListRepository
 import com.gazzel.sesameapp.domain.util.Result
-import com.gazzel.sesameapp.data.mapper.toDomain // Import mapper
-import com.gazzel.sesameapp.data.model.User as DataUser
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.withContext
-import java.io.IOException
+import com.gazzel.sesameapp.domain.util.flatMap
+import com.gazzel.sesameapp.domain.util.map
+import com.gazzel.sesameapp.domain.util.onError
+import com.gazzel.sesameapp.domain.util.onSuccess
+import com.google.firebase.auth.FirebaseAuth
+import com.google.gson.reflect.TypeToken
+import retrofit2.Response
+import java.lang.reflect.Type
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.google.firebase.auth.FirebaseAuth
-import com.gazzel.sesameapp.data.manager.ICacheManager // <<< Import ICacheManager
-import com.google.gson.reflect.TypeToken // <<< Import TypeToken
-import java.lang.reflect.Type // <<< Import Type
-import java.util.concurrent.TimeUnit // <<< For expiry
-
 
 @Singleton
-class UserRepositoryImpl @Inject constructor(
-    private val userApiService: UserApiService,
-    private val userDao: UserDao,
+class ListRepositoryImpl @Inject constructor(
+    private val listApiService: ListApiService,
     private val tokenProvider: TokenProvider,
-    private val firebaseAuth: FirebaseAuth,
-    private val cacheManager: ICacheManager // <<< Inject CacheManager
-) : UserRepository {
+    private val cacheManager: ICacheManager,
+    private val firebaseAuth: FirebaseAuth // Inject FirebaseAuth to get user ID for cache invalidation
+) : ListRepository {
 
     // Cache constants
     companion object {
-        private val USER_CACHE_EXPIRY_MS = TimeUnit.HOURS.toMillis(1) // 1 hour
-        private const val CURRENT_USER_CACHE_KEY = "current_user"
-        // Add other keys as needed (e.g., privacy settings)
+        private val USER_LISTS_CACHE_EXPIRY_MS = TimeUnit.MINUTES.toMillis(15) // 15 minutes
+        private val LIST_DETAIL_CACHE_EXPIRY_MS = TimeUnit.HOURS.toMillis(1)    // 1 hour
+        private const val USER_LISTS_CACHE_PREFIX = "user_lists_"
+        private const val LIST_DETAIL_CACHE_PREFIX = "list_detail_"
+        // Type definition for List<SesameList> cache
+        private val SESAME_LIST_TYPE: Type = SesameList::class.java
+        private val SESAME_LIST_LIST_TYPE: Type = object : TypeToken<List<SesameList>>() {}.type
     }
 
-    // --- Change getCurrentUser from Flow to suspend fun ---
-    override suspend fun getCurrentUser(): Result<DomainUser> {
-        Log.d("UserRepositoryImpl", "Attempting to fetch current user...")
-        val userType: Type = DataUser::class.java // Type for single user
-
-        // 1. Try Cache (using the specific key)
-        try {
-            val cachedUser = cacheManager.getCachedData<DataUser>(CURRENT_USER_CACHE_KEY, userType)
-            if (cachedUser != null) {
-                Log.d("UserRepositoryImpl", "Cache Hit: Returning cached current user")
-                return Result.success(cachedUser.toDomain()) // Map DataUser -> DomainUser
-            }
-            Log.d("UserRepositoryImpl", "Cache Miss: current user")
-        } catch (e: Exception) {
-            Log.e("UserRepositoryImpl", "Cache Get Error for current user", e)
-        }
-
-
-        // 2. Try Local DB (fallback if cache fails or misses)
-        try {
-            val localUser = withContext(Dispatchers.IO) { userDao.getCurrentUser() }
-            if (localUser != null) {
-                Log.d("UserRepositoryImpl", "DB Hit: Returning user from local DB.")
-                // Optionally cache the DB result before returning
-                cacheManager.cacheData(CURRENT_USER_CACHE_KEY, localUser, userType, USER_CACHE_EXPIRY_MS)
-                return Result.success(localUser.toDomain())
-            }
-            Log.d("UserRepositoryImpl", "DB Miss: current user")
-        } catch(e: Exception) {
-            Log.e("UserRepositoryImpl", "DB Get Error for current user", e)
-        }
-
-        // 3. Try Network (last resort)
-        val token = tokenProvider.getToken()
-        if (token == null) {
-            Log.w("UserRepositoryImpl", "No token, cannot fetch user from network.")
-            return Result.error(AppException.AuthException("User not authenticated"))
-        }
-
-        return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.getCurrentUserProfile("Bearer $token")
-            }
-            if (response.isSuccessful && response.body() != null) {
-                val networkUser = response.body()!! // This is DataUser
-                Log.d("UserRepositoryImpl", "Network fetch successful.")
-                // Save to DB
-                withContext(Dispatchers.IO) { userDao.insertUser(networkUser) }
-                // Save to Cache
-                cacheManager.cacheData(CURRENT_USER_CACHE_KEY, networkUser, userType, USER_CACHE_EXPIRY_MS)
-                Result.success(networkUser.toDomain()) // Return mapped DomainUser
-            } else {
-                Log.w("UserRepositoryImpl", "Network fetch failed: ${response.code()}")
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Log.e("UserRepositoryImpl", "Network error fetching user", e)
-            Result.error(mapExceptionToAppException(e, "Failed to fetch user data"))
-        }
-    }
-
-
-    override suspend fun updateUsername(username: String): Result<Unit> {
+    // --- Generic API Call Handlers ---
+    private suspend fun <Dto, Domain> handleApiCallToDomain(apiCall: suspend (String) -> Response<Dto>, mapper: (Dto) -> Domain): Result<Domain> {
         val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
-
+        val authHeader = "Bearer $token"
         return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.setUsername(
-                    authorization = "Bearer $token",
-                    request = UsernameSetDto(username = username) // Use correct DTO
-                )
-            }
-
+            val response = apiCall(authHeader)
             if (response.isSuccessful) {
-                // Update local DB and Cache on success
-                withContext(Dispatchers.IO) {
-                    val localUser = userDao.getCurrentUser()
-                    if (localUser != null) {
-                        val updatedUser = localUser.copy(username = username)
-                        userDao.insertUser(updatedUser)
-                        // Update cache
-                        val userType: Type = DataUser::class.java
-                        cacheManager.cacheData(CURRENT_USER_CACHE_KEY, updatedUser, userType, USER_CACHE_EXPIRY_MS)
-                        Log.d("UserRepositoryImpl", "Local DB and Cache updated with new username.")
-                    } else {
-                        Log.w("UserRepositoryImpl", "Local user not found during username update cache.")
-                        // Invalidate cache if user not found locally?
-                        cacheManager.cacheData<DataUser?>(CURRENT_USER_CACHE_KEY, null, userType, -1L)
-                    }
-                }
-                Result.success(Unit)
+                response.body()?.let { Result.success(mapper(it)) }
+                    ?: Result.error(AppException.UnknownException("API success response body was null"))
             } else {
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+                Result.error(mapErrorToAppException(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
-            Result.error(mapExceptionToAppException(e, "Failed to update username"))
+            Result.error(mapExceptionToAppException(e))
         }
     }
 
-    // --- Change checkUsername from Flow to suspend fun ---
-    override suspend fun checkUsername(): Result<Boolean> {
+    private suspend fun <Dto, Domain> handleListApiCallToDomain(apiCall: suspend (String) -> Response<List<Dto>>, mapper: (Dto) -> Domain): Result<List<Domain>> {
         val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
-
+        val authHeader = "Bearer $token"
         return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.checkUsername(authorization = "Bearer $token")
-            }
-
-            if (response.isSuccessful && response.body() != null) {
-                val needsUsername = response.body()!!.needsUsername
-                Log.d("UserRepositoryImpl", "API check username successful: NeedsUsername=$needsUsername")
-                Result.success(needsUsername)
-            } else {
-                Log.e("UserRepositoryImpl", "API check username failed: ${response.code()}.")
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Log.e("UserRepositoryImpl", "Exception checking username.", e)
-            Result.error(mapExceptionToAppException(e, "Failed to check username status"))
-        }
-    }
-
-    // --- Change getPrivacySettings return type ---
-    override suspend fun getPrivacySettings(): Result<PrivacySettings> { // <<< Changed return type
-        // TODO: Implement Caching for Privacy Settings if desired
-        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
-
-        return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.getPrivacySettings("Bearer $token")
-            }
-            if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
-            } else {
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Result.error(mapExceptionToAppException(e, "Failed to get privacy settings"))
-        }
-    }
-
-    override suspend fun signOut(): Result<Unit> {
-        return try {
-            Log.d("UserRepositoryImpl", "Signing out user...")
-            // Clear cache first
-            try {
-                cacheManager.clearAllCache() // Or at least clear user-specific keys
-                Log.d("UserRepositoryImpl", "User cache cleared.")
-            } catch (cacheEx: Exception) {
-                Log.e("UserRepositoryImpl", "Failed to clear cache during sign out", cacheEx)
-            }
-            // Sign out Firebase
-            withContext(Dispatchers.Default) {
-                firebaseAuth.signOut()
-            }
-            // Clear local DB
-            withContext(Dispatchers.IO) {
-                userDao.deleteAllUsers()
-            }
-            // Clear token provider cache
-            tokenProvider.clearToken()
-            Log.d("UserRepositoryImpl", "Sign out successful.")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e("UserRepositoryImpl", "Sign out failed", e)
-            Result.error(mapExceptionToAppException(e, "Sign out failed"))
-        }
-    }
-
-    override suspend fun updateProfile(displayName: String?, profilePictureUrl: String?): Result<Unit> {
-        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
-        if (displayName == null && profilePictureUrl == null) return Result.success(Unit) // Nothing to update
-
-        return try {
-            val updateDto = UserProfileUpdateDto(displayName = displayName, profilePicture = profilePictureUrl)
-            val response = withContext(Dispatchers.IO) {
-                userApiService.updateUserProfile("Bearer $token", updateDto) // Call actual API
-            }
-
-            if (response.isSuccessful && response.body() != null) {
-                val updatedNetworkUser = response.body()!! // This is DataUser
-                Log.d("UserRepositoryImpl", "API profile update successful, updating cache and DB.")
-                // Update local DB and Cache
-                withContext(Dispatchers.IO) {
-                    userDao.insertUser(updatedNetworkUser) // Update DB
-                    // Update cache
-                    val userType: Type = DataUser::class.java
-                    cacheManager.cacheData(CURRENT_USER_CACHE_KEY, updatedNetworkUser, userType, USER_CACHE_EXPIRY_MS)
-                }
-                Result.success(Unit)
-            } else {
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
-            }
-        } catch (e: Exception) {
-            Result.error(mapExceptionToAppException(e, "Failed to update profile"))
-        }
-    }
-
-    // Helper for updating privacy settings (invalidate cache on success?)
-    private suspend fun updatePrivacySetting(updateDto: PrivacySettingsUpdateDto): Result<Unit> {
-        val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
-        return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.updatePrivacySettings("Bearer $token", updateDto)
-            }
+            val response = apiCall(authHeader)
             if (response.isSuccessful) {
-                // TODO: Invalidate privacy settings cache if implemented
-                Log.d("UserRepositoryImpl", "API privacy update successful.")
-                Result.success(Unit)
+                val domainList = response.body()?.map(mapper) ?: emptyList()
+                Result.success(domainList)
             } else {
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+                Result.error(mapErrorToAppException(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
-            Result.error(mapExceptionToAppException(e, "Failed to update privacy setting"))
+            Result.error(mapExceptionToAppException(e))
         }
     }
-    // Other privacy update methods call the helper...
-    override suspend fun updateProfileVisibility(isPublic: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(profileIsPublic = isPublic))
-    override suspend fun updateListVisibility(arePublic: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(listsArePublic = arePublic))
-    override suspend fun updateAnalytics(enabled: Boolean): Result<Unit> = updatePrivacySetting(PrivacySettingsUpdateDto(allowAnalytics = enabled))
 
-    override suspend fun deleteAccount(): Result<Unit> {
+    private suspend fun handleUnitApiCall(apiCall: suspend (String) -> Response<Unit>): Result<Unit> {
         val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
+        val authHeader = "Bearer $token"
         return try {
-            val response = withContext(Dispatchers.IO) {
-                userApiService.deleteAccount("Bearer $token")
-            }
+            val response = apiCall(authHeader)
             if (response.isSuccessful || response.code() == 204) {
-                Log.d("UserRepositoryImpl", "API account deletion successful. Clearing local data.")
-                // Perform sign out which clears DB/Cache/Token
-                signOut()
                 Result.success(Unit)
             } else {
-                Result.error(mapApiError(response.code(), response.errorBody()?.string()))
+                Result.error(mapErrorToAppException(response.code(), response.errorBody()?.string()))
             }
         } catch (e: Exception) {
-            Result.error(mapExceptionToAppException(e, "Failed to delete account"))
+            Result.error(mapExceptionToAppException(e))
+        }
+    }
+    // --- End API Call Handlers ---
+
+
+    override suspend fun getUserLists(userId: String): Result<List<SesameList>> {
+        val cacheKey = "$USER_LISTS_CACHE_PREFIX$userId"
+
+        // 1. Try cache
+        try {
+            val cachedLists = cacheManager.getCachedData<List<SesameList>>(cacheKey, SESAME_LIST_LIST_TYPE)
+            if (cachedLists != null) {
+                Log.d("ListRepositoryImpl", "Cache Hit: Returning cached user lists for $userId")
+                return Result.success(cachedLists)
+            }
+            Log.d("ListRepositoryImpl", "Cache Miss: for user lists $userId")
+        } catch (e: Exception) {
+            Log.e("ListRepositoryImpl", "Cache Get Error for user lists $userId", e)
+        }
+
+        // 2. Fetch from network
+        val networkResult = handleListApiCallToDomain(
+            apiCall = { authHeader -> listApiService.getUserLists(authHeader, userId = userId) }, // Pass userId if needed by API
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+
+        // 3. Cache on success
+        networkResult.onSuccess { fetchedLists ->
+            try {
+                cacheManager.cacheData(cacheKey, fetchedLists, SESAME_LIST_LIST_TYPE, USER_LISTS_CACHE_EXPIRY_MS)
+                Log.d("ListRepositoryImpl", "Cached ${fetchedLists.size} user lists for $userId")
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Put Error for user lists $userId", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun getPublicLists(): Result<List<SesameList>> {
+        // Caching public lists might need a different strategy or shorter expiry
+        // Skipping cache for simplicity for now
+        return handleListApiCallToDomain(
+            apiCall = { authHeader -> listApiService.getPublicLists(authHeader) }, // Pass auth header if needed
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+    }
+
+    override suspend fun getListById(id: String): Result<SesameList> {
+        val cacheKey = "$LIST_DETAIL_CACHE_PREFIX$id"
+
+        // 1. Try cache
+        try {
+            val cachedList = cacheManager.getCachedData<SesameList>(cacheKey, SESAME_LIST_TYPE)
+            if (cachedList != null) {
+                Log.d("ListRepositoryImpl", "Cache Hit: Returning cached list detail for $id")
+                return Result.success(cachedList)
+            }
+            Log.d("ListRepositoryImpl", "Cache Miss: for list detail $id")
+        } catch (e: Exception) {
+            Log.e("ListRepositoryImpl", "Cache Get Error for list detail $id", e)
+        }
+
+        // 2. Fetch from network
+        val networkResult = handleApiCallToDomain(
+            apiCall = { authHeader -> listApiService.getListDetail(authHeader, id) },
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+
+        // 3. Cache on success
+        networkResult.onSuccess { fetchedList ->
+            try {
+                cacheManager.cacheData(cacheKey, fetchedList, SESAME_LIST_TYPE, LIST_DETAIL_CACHE_EXPIRY_MS)
+                Log.d("ListRepositoryImpl", "Cached list detail for $id")
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Put Error for list detail $id", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun createList(list: SesameList): Result<SesameList> {
+        val listCreateDto = list.toServiceCreateDto()
+        val networkResult = handleApiCallToDomain(
+            apiCall = { authHeader -> listApiService.createList(authHeader, listCreateDto) },
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+
+        networkResult.onSuccess { createdList ->
+            val userId = firebaseAuth.currentUser?.uid
+            try {
+                // Cache new detail
+                val detailCacheKey = "$LIST_DETAIL_CACHE_PREFIX${createdList.id}"
+                cacheManager.cacheData(detailCacheKey, createdList, SESAME_LIST_TYPE, LIST_DETAIL_CACHE_EXPIRY_MS)
+
+                // Invalidate user lists cache
+                if (userId != null) {
+                    val userListsCacheKey = "$USER_LISTS_CACHE_PREFIX$userId"
+                    invalidateCache(userListsCacheKey) // Use helper
+                    Log.d("ListRepositoryImpl", "Invalidated user lists cache after create.")
+                } else {
+                    Log.w("ListRepositoryImpl", "Could not get userId to invalidate user lists cache after create.")
+                }
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Error after creating list ${createdList.id}", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun updateList(list: SesameList): Result<SesameList> {
+        val listUpdateDto = list.toServiceUpdateDto()
+        val networkResult = handleApiCallToDomain(
+            apiCall = { authHeader -> listApiService.updateList(authHeader, list.id, listUpdateDto) },
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+
+        networkResult.onSuccess { updatedList ->
+            val userId = firebaseAuth.currentUser?.uid
+            try {
+                // Update detail cache
+                val cacheKey = "$LIST_DETAIL_CACHE_PREFIX${updatedList.id}"
+                cacheManager.cacheData(cacheKey, updatedList, SESAME_LIST_TYPE, LIST_DETAIL_CACHE_EXPIRY_MS)
+
+                // Invalidate user lists cache
+                if (userId != null) {
+                    val userListsCacheKey = "$USER_LISTS_CACHE_PREFIX$userId"
+                    invalidateCache(userListsCacheKey) // Use helper
+                    Log.d("ListRepositoryImpl", "Updated detail cache and invalidated user lists cache for list ${updatedList.id}")
+                } else {
+                    Log.w("ListRepositoryImpl", "Could not get userId to invalidate user lists cache after update.")
+                    Log.d("ListRepositoryImpl", "Updated detail cache for list ${updatedList.id}")
+                }
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Error after updating list ${list.id}", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun deleteList(id: String): Result<Unit> {
+        val networkResult = handleUnitApiCall { authHeader ->
+            listApiService.deleteList(authHeader, id)
+        }
+
+        networkResult.onSuccess {
+            val userId = firebaseAuth.currentUser?.uid
+            try {
+                // Invalidate detail cache
+                val detailCacheKey = "$LIST_DETAIL_CACHE_PREFIX$id"
+                invalidateCache(detailCacheKey) // Use helper
+
+                // Invalidate user lists cache
+                if (userId != null) {
+                    val userListsCacheKey = "$USER_LISTS_CACHE_PREFIX$userId"
+                    invalidateCache(userListsCacheKey) // Use helper
+                    Log.d("ListRepositoryImpl", "Invalidated detail and user lists cache for list $id after deletion.")
+                } else {
+                    Log.w("ListRepositoryImpl", "Could not get userId to invalidate user lists cache after delete.")
+                    Log.d("ListRepositoryImpl", "Invalidated detail cache for list $id after deletion.")
+                }
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Invalidation Error after deleting list $id", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun getRecentLists(limit: Int): Result<List<SesameList>> {
+        return handleListApiCallToDomain(
+            apiCall = { authHeader -> listApiService.getRecentLists(authHeader, limit) },
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+    }
+
+    override suspend fun searchLists(query: String): Result<List<SesameList>> {
+        return handleListApiCallToDomain(
+            apiCall = { authHeader -> listApiService.searchLists(authHeader, query) },
+            mapper = { listDto -> listDto.toDomainModel() }
+        )
+    }
+
+    // Method not supported
+    override suspend fun addPlaceToList(listId: String, placeId: String): Result<Unit> {
+        Log.e("ListRepositoryImpl", "addPlaceToList(listId, placeId) is not supported.")
+        return Result.error(AppException.UnknownException("Operation addPlaceToList(listId, placeId) not supported."))
+    }
+
+    override suspend fun removePlaceFromList(listId: String, placeId: String): Result<Unit> {
+        val networkResult = handleUnitApiCall { authHeader ->
+            listApiService.removePlaceFromList(authHeader, listId, placeId)
+        }
+        networkResult.onSuccess {
+            try {
+                // Invalidate list detail cache (contains places)
+                val detailCacheKey = "$LIST_DETAIL_CACHE_PREFIX$listId"
+                invalidateCache(detailCacheKey) // Use helper
+
+                // Invalidate list places cache (used by PlaceRepositoryImpl.getPlacesByListId)
+                val listPlacesCacheKey = "list_places_$listId"
+                invalidateCache(listPlacesCacheKey) // Use helper
+
+                Log.d("ListRepositoryImpl", "Invalidated detail and list places cache for list $listId after removing place $placeId.")
+            } catch (e: Exception) {
+                Log.e("ListRepositoryImpl", "Cache Invalidation Error after removing place $placeId from list $listId", e)
+            }
+        }
+        return networkResult
+    }
+
+    override suspend fun followList(listId: String): Result<Unit> {
+        // TODO: Potentially invalidate list detail cache if follower count is shown/cached
+        return handleUnitApiCall { authHeader ->
+            listApiService.followList(authHeader, listId)
         }
     }
 
-    // --- Error Mapping Helpers ---
-    private fun mapApiError(code: Int, errorBody: String?): AppException { /* ... Keep implementation ... */ }
-    private fun mapExceptionToAppException(e: Throwable, defaultMessage: String): AppException { /* ... Keep implementation ... */ }
+    override suspend fun unfollowList(listId: String): Result<Unit> {
+        // TODO: Potentially invalidate list detail cache if follower count is shown/cached
+        return handleUnitApiCall { authHeader ->
+            listApiService.unfollowList(authHeader, listId)
+        }
+    }
 
+    // --- Cache Invalidation Helper ---
+    private suspend fun invalidateCache(key: String) {
+        try {
+            // Invalidate by setting data to null with immediate expiry (-1)
+            // We need a type, but it doesn't matter what since data is null. Use Any?
+            cacheManager.cacheData<Any?>(key, null, Any::class.java, -1L)
+        } catch (e: Exception) {
+            Log.e("ListRepositoryImpl", "Failed to invalidate cache key '$key'", e)
+        }
+    }
+
+    // --- Error Mapping Helpers (Keep as they are) ---
+    private fun mapErrorToAppException(code: Int, errorBody: String?): AppException {
+        Log.e("ListRepositoryImpl", "API Error $code: ${errorBody ?: "Unknown error"}")
+        return when (code) {
+            400 -> AppException.ValidationException(errorBody ?: "Bad Request")
+            401, 403 -> AppException.AuthException(errorBody ?: "Authorization failed") // Combine 401 and 403
+            404 -> AppException.ResourceNotFoundException(errorBody ?: "Not Found")
+            in 500..599 -> AppException.NetworkException("Server Error ($code): ${errorBody ?: ""}", code)
+            else -> AppException.NetworkException("Network Error ($code): ${errorBody ?: ""}", code)
+        }
+    }
+
+    private fun mapExceptionToAppException(e: Exception): AppException {
+        Log.e("ListRepositoryImpl", "Network/Unknown error: ${e.message ?: "Unknown exception"}", e)
+        return when(e) {
+            is java.io.IOException -> AppException.NetworkException("Network IO error: ${e.message}", cause = e)
+            is retrofit2.HttpException -> mapErrorToAppException(e.code(), e.response()?.errorBody()?.string() ?: e.message())
+            is AppException -> e // Don't re-wrap existing AppExceptions
+            else -> AppException.UnknownException(e.message ?: "An unknown error occurred", e)
+        }
+    }
 }
-
-// Mapper (Keep as is)
-// fun DataUser.toDomain(): DomainUser { ... }

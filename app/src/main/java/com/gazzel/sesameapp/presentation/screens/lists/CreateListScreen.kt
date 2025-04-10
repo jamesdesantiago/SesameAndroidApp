@@ -1,80 +1,103 @@
 // app/src/main/java/com/gazzel/sesameapp/presentation/screens/lists/CreateListScreen.kt
-// (Content moved from CreateListActivity and updated)
 package com.gazzel.sesameapp.presentation.screens.lists
 
 import android.util.Log
-import androidx.compose.foundation.layout.* // Use wildcard import for layout
+import androidx.compose.foundation.clickable // <<< Keep clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.* // Use wildcard import for material3
-import androidx.compose.runtime.* // Use wildcard import for runtime
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // <<< Import
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.gazzel.sesameapp.R // <<< Import R
 import com.gazzel.sesameapp.presentation.navigation.Screen
 
-@OptIn(ExperimentalMaterial3Api::class) // Needed for Scaffold, TopAppBar, etc.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateListScreen( // Renamed function slightly for clarity
+fun CreateListScreen(
     navController: NavController,
-    viewModel: CreateListViewModel = hiltViewModel() // Inject ViewModel
+    viewModel: CreateListViewModel = hiltViewModel()
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isPublic by remember { mutableStateOf(false) }
+    var titleError by remember { mutableStateOf<String?>(null) } // For local validation message
 
     val uiState by viewModel.uiState.collectAsState()
 
-    // Handle navigation automatically on Success state change
+    // Basic validation function
+    fun validateInput(): Boolean {
+        if (title.isBlank()) {
+            titleError = R.string.error_title_blank // Set resource ID
+            return false
+        }
+        titleError = null // Clear error if valid
+        return true
+    }
+
     LaunchedEffect(uiState) {
         if (uiState is CreateListUiState.Success) {
             val newListId = (uiState as CreateListUiState.Success).newListId
             if (newListId != null) {
                 Log.d("CreateListScreen", "List created with ID: $newListId, navigating to SearchPlaces.")
-                // Navigate to SearchPlaces, passing the new list ID
                 navController.navigate(Screen.SearchPlaces.createRoute(newListId)) {
-                    // Pop CreateListScreen off the back stack so back button goes to ListsScreen/Home
                     popUpTo(Screen.CreateList.route) { inclusive = true }
                 }
             } else {
-                // Handle case where ID is missing after creation (error)
                 Log.e("CreateListScreen", "List created but ID is missing. Navigating back.")
-                // Potentially show a Snackbar error here
-                navController.popBackStack() // Go back anyway
+                // TODO: Show Snackbar error here using a separate event from VM if needed
+                navController.popBackStack()
             }
-            viewModel.resetState() // Reset ViewModel state after handling navigation
+            viewModel.resetState()
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create New List") },
+                title = { Text(stringResource(R.string.create_list_title)) }, // <<< Use String Res
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) { // Use navigateUp for back
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back_button)) // <<< Use String Res
                     }
                 }
-                // Add colors if desired using TopAppBarDefaults.topAppBarColors(...)
             )
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Apply padding from Scaffold
-                .padding(16.dp),       // Apply screen-specific padding
+                .padding(paddingValues)
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             OutlinedTextField(
                 value = title,
-                onValueChange = { title = it },
-                label = { Text("List Title*") }, // Indicate required field
+                onValueChange = {
+                    title = it
+                    if (titleError != null && it.isNotBlank()) {
+                        titleError = null // Clear error on typing
+                    }
+                },
+                label = { Text(stringResource(R.string.label_list_title_required)) }, // <<< Use String Res
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                enabled = uiState !is CreateListUiState.Loading // Disable when loading
+                enabled = uiState !is CreateListUiState.Loading,
+                isError = titleError != null || uiState is CreateListUiState.Error, // Show error state
+                supportingText = { // Display validation error below field
+                    if (titleError != null) {
+                        Text(
+                            stringResource(titleError!!),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -82,10 +105,10 @@ fun CreateListScreen( // Renamed function slightly for clarity
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Description (Optional)") },
+                label = { Text(stringResource(R.string.label_list_description_optional)) }, // <<< Use String Res
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3,
-                enabled = uiState !is CreateListUiState.Loading // Disable when loading
+                enabled = uiState !is CreateListUiState.Loading
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -93,18 +116,18 @@ fun CreateListScreen( // Renamed function slightly for clarity
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                // Make row clickable to toggle checkbox as well
-                // modifier = Modifier.clickable { if (uiState !is CreateListUiState.Loading) isPublic = !isPublic }
             ) {
+                val isLoading = uiState is CreateListUiState.Loading
                 Checkbox(
                     checked = isPublic,
-                    onCheckedChange = { if (uiState !is CreateListUiState.Loading) isPublic = it },
-                    enabled = uiState !is CreateListUiState.Loading // Disable when loading
+                    onCheckedChange = { if (!isLoading) isPublic = it }, // Check loading state
+                    enabled = !isLoading // Disable when loading
                 )
-                // Make text clickable too
                 Text(
-                    "Make this list public",
-                    modifier = Modifier.clickable(enabled = uiState !is CreateListUiState.Loading) { isPublic = !isPublic }.padding(start = 4.dp)
+                    text = stringResource(R.string.checkbox_make_public), // <<< Use String Res
+                    modifier = Modifier
+                        .clickable(enabled = !isLoading) { isPublic = !isPublic } // Check loading state
+                        .padding(start = 4.dp)
                 )
             }
 
@@ -115,31 +138,42 @@ fun CreateListScreen( // Renamed function slightly for clarity
                 when (val currentState = uiState) {
                     is CreateListUiState.Loading -> {
                         CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(stringResource(R.string.state_loading))
                     }
                     is CreateListUiState.Error -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Button( // Show button even on error to allow retry
-                                onClick = { viewModel.createList(title, description, isPublic) },
+                            Button(
+                                onClick = {
+                                    if (validateInput()) { // Validate before retrying
+                                        viewModel.createList(title, description, isPublic)
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = title.isNotBlank() // Basic validation
+                                enabled = true // Always allow retry
                             ) {
-                                Text("Retry Create List")
+                                Text(stringResource(R.string.button_retry_create_list)) // <<< Use String Res
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = currentState.message,
+                                text = currentState.message, // Show error from VM
                                 color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                     is CreateListUiState.Initial, is CreateListUiState.Success -> { // Show button in Initial state
                         Button(
-                            onClick = { viewModel.createList(title, description, isPublic) },
+                            onClick = {
+                                if (validateInput()) { // Validate before creating
+                                    viewModel.createList(title, description, isPublic)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = title.isNotBlank() // Enable only if title is not blank
+                            enabled = true // Validation check happens onClick
                         ) {
-                            Text("Create & Add Places")
+                            Text(stringResource(R.string.button_create_and_add)) // <<< Use String Res
                         }
                     }
                 }

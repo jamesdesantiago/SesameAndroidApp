@@ -1,3 +1,161 @@
 <resources>
-    <string name="app_name">SesameApp</string>
+    <string name="app_name">Sesame</string> <!-- Shorten? -->
+
+    <!-- Login Screen -->
+    <string name="login_welcome_title">Welcome to Sesame</string>
+    <string name="login_welcome_subtitle">Your personal list companion</string>
+    <string name="login_button_google">Sign in with Google</string>
+    <string name="cd_login_google_icon">Google Sign In icon</string>
+    <string name="error_login_failed">Sign in failed. Please try again.</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">Sesame</string> <!-- Or just use app_name -->
+    <string name="home_search_label">Search lists</string>
+    <string name="home_welcome">Welcome, %1$s!</string> <!-- Placeholder for name -->
+    <string name="home_welcome_default_user">User</string> <!-- Fallback name -->
+    <string name="home_quick_action_new_list">New List</string>
+    <string name="home_quick_action_search">Search</string>
+    <string name="home_quick_action_share">Share</string>
+    <string name="home_section_recent_lists">Recent Lists</string>
+    <string name="home_no_recent_lists">No recent lists found</string>
+    <string name="cd_search_icon">Search lists</string>
+    <string name="cd_profile_icon">View profile</string>
+    <string name="cd_home_icon">Home</string>
+    <string name="cd_lists_icon">Lists</string>
+    <string name="cd_friends_icon">Friends</string>
+    <string name="cd_clear_search_icon">Clear search</string>
+    <string name="cd_share_list_icon">Share list</string>
+    <string name="cd_quick_action_icon">Quick action icon</string> <!-- Generic for QuickActionButton icons -->
+
+    <!-- Common -->
+    <string name="state_loading">Loading…</string>
+    <string name="label_title">Title</string>
+    <string name="label_description">Description</string>
+    <string name="button_retry">Retry</string>
+    <string name="dialog_button_cancel">Cancel</string>
+    <string name="cd_back_button">Back</string>
+    <string name="dialog_delete_confirm_button">Delete</string>
+    <string name="dialog_delete_cancel_button">Cancel</string>
+
+    <!-- Potentially moved from other screens -->
+    <string name="label_username">Username</string>
+    <string name="button_retry">Retry</string>
+    <string name="button_continue">Continue</string>
+    <string name="username_setup_title">Choose a Username</string>
+    <string name="error_username_too_short">Username must be at least 3 characters long.</string>
+    <string name="username_setup_success">Username set successfully!</string>
+
+    <!-- Lists Screen -->
+    <string name="lists_title">My Lists</string>
+    <string name="cd_create_list">Create new list</string>
+    <string name="cd_delete_list">Delete list</string>
+    <string name="lists_empty_title">No lists yet</string>
+    <string name="lists_empty_subtitle">Tap the \'+\' button in the top bar\nto create your first list!</string>
+    <plurals name="list_item_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <string name="list_updated_date">Updated %1$s</string>
+    <string name="dialog_delete_list_title">Delete List</string>
+    <string name="dialog_delete_list_text">Are you sure you want to delete \"%1$s\"? This cannot be undone.</string>
+    <string name="dialog_delete_confirm_button">Delete</string>
+    <string name="dialog_delete_cancel_button">Cancel</string>
+
+    <!-- Friends Screen -->
+    <string name="friends_title">Friends</string>
+    <string name="friends_search_placeholder">Search friends by email</string>
+    <string name="button_following">Following</string>
+    <string name="button_follow">Follow</string>
+    <plurals name="friend_list_count">
+        <item quantity="one">%1$d list</item>
+        <item quantity="other">%1$d lists</item>
+    </plurals>
+    <string name="friends_empty_title">No friends yet</string>
+    <string name="friends_empty_subtitle">Use the search bar above to find people by email and follow them.</string>
+    <string name="friends_empty_search_title">No friends found</string>
+    <string name="friends_empty_search_subtitle">Try searching for a different email address.</string>
+    <string name="cd_friend_profile_picture">Friend profile picture</string>
+
+    <!-- Help Screen -->
+    <string name="help_screen_title">Help & Support</string> <!-- Use & for ampersand -->
+    <string name="cd_back_button">Back</string>
+    <string name="help_quick_actions_title">Quick Actions</string>
+    <string name="help_button_contact_support">Contact Support</string>
+    <string name="help_button_send_feedback">Send Feedback</string>
+    <string name="help_faq_title">Frequently Asked Questions</string>
+    <string name="cd_show_less">Show less</string>
+    <string name="cd_show_more">Show more</string>
+    <string name="dialog_contact_support_title">Contact Support</string>
+    <string name="dialog_contact_support_label_subject">Subject</string>
+    <string name="dialog_contact_support_label_message">Message</string>
+    <string name="dialog_send_feedback_title">Send Feedback</string>
+    <string name="dialog_send_feedback_label_feedback">Your feedback</string>
+    <string name="dialog_button_send">Send</string>
+    <string name="dialog_button_cancel">Cancel</string>
+
+    <!-- Create List Screen -->
+    <string name="create_list_title">Create New List</string>
+    <string name="cd_back_button">Back</string> <!-- Reused -->
+    <string name="label_list_title_required">List Title*</string>
+    <string name="label_list_description_optional">Description (Optional)</string>
+    <string name="checkbox_make_public">Make this list public</string>
+    <string name="button_create_and_add">Create & Add Places</string> <!-- Use & for ampersand -->
+    <string name="button_retry_create_list">Retry Create List</string>
+    <string name="error_title_blank">List title cannot be blank.</string> <!-- Example validation error -->
+
+    <!-- Notifications Screen -->
+    <string name="notifications_screen_title">Notifications</string>
+    <string name="notifications_empty_title">No Notifications</string>
+    <string name="notifications_empty_subtitle">You're all caught up!</string>
+    <string name="cd_mark_all_read">Mark all as read</string> <!-- If adding action -->
+
+    <!-- Privacy Settings Screen -->
+    <string name="privacy_settings_title">Privacy Settings</string>
+    <string name="privacy_setting_profile_title">Profile Visibility</string>
+    <string name="privacy_setting_profile_desc">Control who can see your profile.</string>
+    <string name="privacy_setting_profile_label">Public Profile</string>
+    <string name="privacy_setting_lists_title">List Visibility</string>
+    <string name="privacy_setting_lists_desc">Control who can see your lists by default.</string>
+    <string name="privacy_setting_lists_label">Make New Lists Public</string> <!-- Changed label slightly -->
+    <string name="privacy_setting_data_title">Data Collection</string>
+    <string name="privacy_setting_data_desc">Allow usage data collection to help improve the app.</string>
+    <string name="privacy_setting_data_label">Allow Analytics</string>
+    <string name="privacy_button_delete_account">Delete Account</string>
+    <string name="dialog_delete_account_title">Delete Account?</string>
+    <string name="dialog_delete_account_text">Are you sure you want to permanently delete your account and all associated data? This action cannot be undone.</string>
+    <string name="privacy_account_deleted_message">Account Deleted</string>
+
+    <!-- Edit Profile Screen -->
+    <string name="edit_profile_title">Edit Profile</string>
+    <string name="cd_profile_picture_placeholder">Profile picture placeholder</string>
+    <string name="cd_edit_profile_picture">Edit profile picture</string>
+    <string name="label_display_name">Display Name</string>
+    <string name="button_save_changes">Save Changes</string>
+    <string name="dialog_update_picture_title">Update Profile Picture</string>
+    <string name="dialog_update_picture_text">Choose how to update your picture.</string> <!-- Example text -->
+    <string name="dialog_update_picture_confirm_button">Choose Image</string> <!-- Example button text -->
+
+    <!-- Profile Screen -->
+    <string name="profile_title">Profile</string>
+    <string name="cd_profile_picture">Profile picture</string>
+    <string name="default_username">User</string> <!-- Fallback if no display name or username -->
+    <string name="profile_action_edit">Edit Profile</string>
+    <string name="profile_action_notifications">Notifications</string>
+    <string name="profile_action_privacy">Privacy & Security</string> <!-- Changed name slightly -->
+    <string name="profile_action_help">Help & Support</string>
+    <string name="profile_button_sign_out">Sign Out</string>
+    <string name="dialog_sign_out_title">Sign Out?</string>
+    <string name="dialog_sign_out_text">Are you sure you want to sign out?</string>
+    <string name="signing_out">Signing out…</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">Home</string> <!-- Or use app_name -->
+    <string name="cd_view_lists">View Lists</string>
+    <string name="cd_view_friends">View Friends</string>
+    <string name="cd_create_new_list">Create new list</string>
+    <string name="home_error_location_permission_denied">Location permission denied. Map functionality will be limited.</string>
+    <string name="home_error_location_unavailable">Unable to get current location. Is location enabled?</string>
+    <string name="home_error_loading_places">Failed to load places nearby.</string>
+    <string name="home_location_permission_rationale">Location permission is needed to show nearby places on the map.</string> <!-- Example Rationale -->
+
 </resources>
