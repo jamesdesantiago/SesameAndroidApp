@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.ksp) apply false            // Add for Room
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.google.services) apply false
+    alias(libs.plugins.google.secrets) apply false
 }
 
 tasks.named("dependencyUpdates") {
