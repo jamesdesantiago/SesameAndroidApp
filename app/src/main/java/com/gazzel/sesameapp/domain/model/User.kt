@@ -1,3 +1,4 @@
+// app/src/main/java/com/gazzel/sesameapp/domain/model/User.kt
 package com.gazzel.sesameapp.domain.model
 
 data class User(

@@ -1,10 +1,11 @@
-// app/src/main/java/com/gazzel/sesameapp/data/paging/FollowingPagingSource.kt
+// File: app/src/main/java/com/gazzel/sesameapp/data/paging/FollowingPagingSource.kt
 package com.gazzel.sesameapp.data.paging
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
-import com.gazzel.sesameapp.data.mapper.toDomainFriend // Make sure import is correct
-import com.gazzel.sesameapp.data.model.User           // Make sure import is correct
+import com.gazzel.sesameapp.data.mapper.toDomainFriend // Ensure correct import
+// Import the NEW UserDto
+import com.gazzel.sesameapp.data.remote.dto.UserDto // <<< CHANGE
 import com.gazzel.sesameapp.data.remote.UserApiService
 import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.model.Friend
@@ -30,6 +31,7 @@ class FollowingPagingSource(
         Log.d("FollowingPagingSource", "Loading page $page with size $pageSize")
 
         return try {
+            // API call now returns PaginatedUserResponseDto which contains List<UserDto>
             val response = userApiService.getFollowing(
                 token = authorizationHeader,
                 page = page,
@@ -43,10 +45,13 @@ class FollowingPagingSource(
                     return LoadResult.Page(emptyList(), if (page == 1) null else page - 1, null)
                 }
 
-                val usersDto = paginatedResponse.items
-                // Map using the UserMapper function
-                val friendsDomain = usersDto.map { userDto ->
-                    userDto.toDomainFriend(isFollowing = true) // isFollowing is true here
+                // paginatedResponse.items is now List<UserDto>
+                val usersDtoList: List<UserDto> = paginatedResponse.items
+
+                // --- MAP List<UserDto> to List<Friend> ---
+                val friendsDomain = usersDtoList.map { userDto ->
+                    // For the following list, isFollowing is always true
+                    userDto.toDomainFriend(isFollowing = true)
                 }
                 Log.d("FollowingPagingSource", "Page $page loaded ${friendsDomain.size} following. Total pages: ${paginatedResponse.totalPages}")
 
@@ -71,6 +76,7 @@ class FollowingPagingSource(
     }
 
     override fun getRefreshKey(state: PagingState<Int, Friend>): Int? {
+        // Standard implementation
         return state.anchorPosition?.let { anchorPosition ->
             state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
                 ?: state.closestPageToPosition(anchorPosition)?.nextKey?.minus(1)

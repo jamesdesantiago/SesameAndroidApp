@@ -1,42 +1,57 @@
+// app/src/main/java/com/gazzel/sesameapp/data/mapper/UserMapper.kt
 package com.gazzel.sesameapp.data.mapper
 
-import com.gazzel.sesameapp.data.model.User as DataUser
-import com.gazzel.sesameapp.domain.model.User as DomainUser
+// Import all three User representations
+import com.gazzel.sesameapp.data.local.entity.UserEntity
+import com.gazzel.sesameapp.data.remote.dto.UserDto
+import com.gazzel.sesameapp.domain.model.User as DomainUser // Alias domain model
 import com.gazzel.sesameapp.domain.model.Friend as DomainFriend
 
-fun DataUser.toDomain(): DomainUser {
+// Maps Network DTO -> Domain Model
+fun UserDto.toDomain(): DomainUser {
     return DomainUser(
-        id = id,
-        email = email,
-        username = username,
-        displayName = displayName,
-        profilePicture = profilePicture
+        id = this.id,
+        email = this.email,
+        username = this.username,
+        displayName = this.displayName,
+        profilePicture = this.profilePicture
     )
 }
 
-fun DomainUser.toEntity(): DataUser {
-    return DataUser(
-        id = id,
-        email = email,
-        username = username,
-        displayName = displayName,
-        profilePicture = profilePicture
+// Maps Database Entity -> Domain Model
+fun UserEntity.toDomain(): DomainUser {
+    return DomainUser(
+        id = this.id,
+        email = this.email,
+        username = this.username,
+        displayName = this.displayName,
+        profilePicture = this.profilePicture
+    )
+}
+
+// Maps Domain Model -> Database Entity
+fun DomainUser.toEntity(): UserEntity {
+    return UserEntity(
+        id = this.id,
+        email = this.email,
+        username = this.username,
+        displayName = this.displayName,
+        profilePicture = this.profilePicture
     )
 }
 
 /**
- * Maps the Data layer User model to the Domain layer Friend model.
- * Requires the 'isFollowing' status to be passed in, as the User DTO itself doesn't contain it.
+ * Maps the Network User DTO to the Domain layer Friend model.
+ * Requires the 'isFollowing' status to be passed in.
  */
-fun DataUser.toDomainFriend(isFollowing: Boolean): DomainFriend {
+fun UserDto.toDomainFriend(isFollowing: Boolean): DomainFriend { // <<< CHANGED input type
     return DomainFriend(
-        id = this.id.toString(), // Assuming domain Friend uses String ID and data User uses Int ID
-        // Provide a sensible fallback if username is null
-        username = this.username ?: this.email.substringBefore('@'),
+        id = this.id, // Assuming domain Friend uses String ID, DTO also uses String
+        username = this.username ?: this.email.substringBefore('@'), // Use username or derive from email
         displayName = this.displayName,
         profilePicture = this.profilePicture,
-        listCount = 0, // The paginated User DTO from the API doesn't include listCount. Defaulting to 0.
-        // A separate API call or a different DTO would be needed if this count is crucial here.
-        isFollowing = isFollowing // Set based on the context (e.g., true for /following results)
+        // listCount = this.listCount ?: 0, // If UserDto has counts
+        listCount = 0, // Default if UserDto doesn't include counts
+        isFollowing = isFollowing
     )
 }

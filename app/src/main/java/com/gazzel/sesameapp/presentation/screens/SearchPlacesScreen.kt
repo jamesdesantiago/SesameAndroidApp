@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.gazzel.sesameapp.data.service.PlaceDetailsResponse // Keep DTO import for Overlay
 // Import the moved components
 import com.gazzel.sesameapp.presentation.components.search.SearchPlacesOverlay
 import com.gazzel.sesameapp.presentation.components.search.SuggestionItem

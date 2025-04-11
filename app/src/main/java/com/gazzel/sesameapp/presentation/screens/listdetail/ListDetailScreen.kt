@@ -39,6 +39,7 @@ import com.google.maps.android.compose.*
 import kotlinx.coroutines.flow.collectLatest // Import collectLatest
 import kotlinx.coroutines.launch
 import com.gazzel.sesameapp.R // Import R class
+import kotlin.collections.get
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class) // Add ExperimentalMaterialApi
 @Composable

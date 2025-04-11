@@ -51,9 +51,6 @@ android {
             useSupportLibrary = true
         }
 
-        //val mapsApiKey = getApiKey(rootProject.rootDir, "MAPS_API_KEY")
-        //buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
-        //manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {
@@ -100,7 +97,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.material) // Google Material Components
 
     // Compose
     implementation(libs.androidx.compose.ui)
@@ -155,4 +151,10 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
+
+    // Unit Testing
+    testImplementation(libs.junit) // Core JUnit
+    testImplementation(libs.mockito.kotlin) // Mockito for Kotlin
+    testImplementation(libs.kotlinx.coroutines.test) // Coroutine testing utilities
+    testImplementation(libs.turbine) // Flow testing library
 }

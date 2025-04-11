@@ -4,7 +4,7 @@ package com.gazzel.sesameapp.di
 // --- Consolidated & Current Services ---
 import com.gazzel.sesameapp.data.remote.ListApiService // The new consolidated service
 import com.gazzel.sesameapp.data.remote.UserApiService // Keep for now, will consolidate User services next
-import com.gazzel.sesameapp.data.service.GooglePlacesService // For Google Places
+import com.gazzel.sesameapp.data.remote.GooglePlacesService // For Google Places
 
 // --- Hilt, OkHttp, Retrofit ---
 import dagger.Module

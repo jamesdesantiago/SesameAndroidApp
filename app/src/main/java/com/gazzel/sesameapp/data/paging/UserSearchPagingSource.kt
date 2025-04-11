@@ -1,15 +1,14 @@
-// Create file: app/src/main/java/com/gazzel/sesameapp/data/paging/UserSearchPagingSource.kt
+// File: app/src/main/java/com/gazzel/sesameapp/data/paging/UserSearchPagingSource.kt
 package com.gazzel.sesameapp.data.paging
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.gazzel.sesameapp.data.mapper.toDomainFriend // Ensure correct import
-import com.gazzel.sesameapp.data.model.User           // Your data layer User model
+// Import the NEW UserDto
+import com.gazzel.sesameapp.data.remote.dto.UserDto // <<< CHANGE
 import com.gazzel.sesameapp.data.remote.UserApiService
 import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.model.Friend // Domain model
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.IOException
 import android.util.Log
@@ -20,7 +19,7 @@ class UserSearchPagingSource(
     private val query: String,
     // Pre-fetched set of IDs the current user is following
     private val currentlyFollowingIds: Set<String>
-) : PagingSource<Int, Friend>() { // Key: Int (page), Value: Friend (domain model)
+) : PagingSource<Int, Friend>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Friend> {
         val token = tokenProvider.getToken()
@@ -34,18 +33,20 @@ class UserSearchPagingSource(
         val pageSize = params.loadSize
         Log.d("UserSearchPagingSource", "Loading page $page with size $pageSize for query '$query'")
 
-        // Don't proceed if query is too short (should ideally be handled in VM/Repo)
         if (query.isBlank()) {
             Log.w("UserSearchPagingSource", "Attempted to load with blank query.")
+            // Return empty page immediately if query is blank
             return LoadResult.Page(data = emptyList(), prevKey = null, nextKey = null)
         }
 
         return try {
-            val response = userApiService.searchUsersByEmail( // Call paginated API for search
-                email = query, // Pass the search query
+            // ASSUMPTION: searchUsersByEmail takes page/pageSize and returns PaginatedUserResponseDto
+            // Update UserApiService if this assumption is incorrect
+            val response = userApiService.searchUsersByEmail(
+                email = query,
                 token = authorizationHeader,
-                page = page,
-                pageSize = pageSize
+                page = page, // <<< Assuming API supports this
+                pageSize = pageSize // <<< Assuming API supports this
             )
 
             if (response.isSuccessful) {
@@ -55,11 +56,13 @@ class UserSearchPagingSource(
                     return LoadResult.Page(emptyList(), if (page == 1) null else page - 1, null)
                 }
 
-                val usersDto = paginatedResponse.items
-                // --- MAP User data model to Friend domain model ---
-                val friendsDomain = usersDto.map { userDto ->
+                // paginatedResponse.items is List<UserDto>
+                val usersDtoList: List<UserDto> = paginatedResponse.items
+
+                // --- MAP List<UserDto> to List<Friend> ---
+                val friendsDomain = usersDtoList.map { userDto ->
                     // Determine isFollowing status using the pre-fetched set
-                    val isFollowing = currentlyFollowingIds.contains(userDto.id.toString())
+                    val isFollowing = currentlyFollowingIds.contains(userDto.id) // Use ID from DTO
                     userDto.toDomainFriend(isFollowing = isFollowing)
                 }
                 Log.d("UserSearchPagingSource", "Page $page loaded ${friendsDomain.size} search results for '$query'. Total pages: ${paginatedResponse.totalPages}")

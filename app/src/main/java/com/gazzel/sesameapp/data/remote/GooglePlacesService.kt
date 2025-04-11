@@ -1,4 +1,4 @@
-package com.gazzel.sesameapp.data.service
+package com.gazzel.sesameapp.data.remote
 
 import retrofit2.Response
 import retrofit2.http.Body

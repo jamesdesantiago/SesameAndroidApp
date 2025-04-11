@@ -9,11 +9,11 @@ import com.gazzel.sesameapp.BuildConfig
 import com.gazzel.sesameapp.data.manager.PlaceUpdateManager
 // Import PlaceRepository instead of ListApiService
 import com.gazzel.sesameapp.domain.repository.PlaceRepository // <<< CHANGE
-import com.gazzel.sesameapp.data.service.GooglePlacesService
-import com.gazzel.sesameapp.data.service.AutocompleteRequest
+import com.gazzel.sesameapp.data.remote.GooglePlacesService
+import com.gazzel.sesameapp.data.remote.AutocompleteRequest
 // Import Google API response DTOs
-import com.gazzel.sesameapp.data.service.PlaceDetailsResponse
-import com.gazzel.sesameapp.data.service.PlacePrediction
+import com.gazzel.sesameapp.data.remote.PlaceDetailsResponse
+import com.gazzel.sesameapp.data.remote.PlacePrediction
 // Import Domain Model
 import com.gazzel.sesameapp.domain.model.PlaceItem // <<< ADD
 // Import Result and extensions
@@ -28,7 +28,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject

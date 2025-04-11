@@ -45,24 +45,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 abstract class SecurityModule{
 
-    /**
-     * Provides a singleton instance of DeviceIdManager.
-     * This manager handles secure device identification.
-     *
-     * @param context The application context
-     * @param securityManager The SecurityManager instance
-     * @param logger The Logger instance
-     * @return The configured DeviceIdManager
-     */
-    @Provides
-    @Singleton
-    fun provideDeviceIdManager(
-        @ApplicationContext context: Context,
-        securityManager: SecurityManager,
-    ): DeviceIdManager {
-        return DeviceIdManager(context, securityManager, logger)
-    }
-
     @Binds
     @Singleton
     abstract fun bindSecurityManager(

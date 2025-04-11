@@ -1,89 +1,92 @@
 // File: app/src/main/java/com/gazzel/sesameapp/data/remote/UserApiService.kt
 package com.gazzel.sesameapp.data.remote
 
-import com.gazzel.sesameapp.data.model.User
+// Import the new UserDto
+import com.gazzel.sesameapp.data.remote.dto.UserDto // <<< CHANGED import
+// Import other necessary DTOs
 import com.gazzel.sesameapp.data.remote.dto.PrivacySettingsUpdateDto
 import com.gazzel.sesameapp.data.remote.dto.UserProfileUpdateDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameCheckResponseDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameSetResponseDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameSetDto
-import com.gazzel.sesameapp.data.remote.dto.PaginatedUserResponseDto
+// Import the paginated DTO containing the new UserDto
+import com.gazzel.sesameapp.data.remote.dto.PaginatedUserResponseDto // Ensure this uses UserDto internally
+// Import Domain models (only if API directly returns them, like PrivacySettings)
 import com.gazzel.sesameapp.domain.model.PrivacySettings
+// Retrofit imports
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.PATCH
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
-import retrofit2.http.Query
+import retrofit2.http.* // Use wildcard for brevity
 
 interface UserApiService {
-    // --- User Profile & Account Operations (From both previous services, consolidated here) ---
 
-    @GET("users/me") // <<< From UserApiService & UserProfileService (GET Current User Profile)
+    @GET("users/me")
     suspend fun getCurrentUserProfile(
         @Header("Authorization") authorization: String
-    ): Response<User> // Response is Data layer User model
+    ): Response<UserDto> // <<< CHANGED to UserDto
 
-    @PUT("users/me") // Or PATCH, if partial updates are supported
+    @PUT("users/me") // Or PATCH
     suspend fun updateUserProfile(
         @Header("Authorization") authorization: String,
-        @Body userProfileUpdate: UserProfileUpdateDto // <<< DTO for updates
-    ): Response<User> // Assuming API returns updated User
+        @Body userProfileUpdate: UserProfileUpdateDto
+    ): Response<UserDto> // <<< CHANGED to UserDto (assuming API returns updated user DTO)
 
-    @DELETE("users/me") // From UserApiService (Delete Account)
+    @DELETE("users/me")
     suspend fun deleteAccount(
         @Header("Authorization") authorization: String
     ): Response<Unit>
 
-    @POST("users/set-username") // From UserApiService & UserProfileService (Set Username)
+    @POST("users/set-username")
     suspend fun setUsername(
         @Header("Authorization") authorization: String,
-        @Body request: UsernameSetDto // <<< Use DTO for request
-    ): Response<UsernameSetResponseDto> // <<< Use DTO for response
+        @Body request: UsernameSetDto
+    ): Response<UsernameSetResponseDto>
 
-    @GET("users/check-username") // From UserApiService & UserProfileService (Check Username)
+    @GET("users/check-username")
     suspend fun checkUsername(
         @Header("Authorization") authorization: String
-    ): Response<UsernameCheckResponseDto> // <<< Use DTO for response
+    ): Response<UsernameCheckResponseDto>
 
-    @GET("users/{userId}") // From UserProfileService (Get User Profile by ID)
+    @GET("users/{userId}")
     suspend fun getUserProfileById(
         @Path("userId") userId: String,
         @Header("Authorization") authorization: String
-    ): Response<User>
+    ): Response<UserDto> // <<< CHANGED to UserDto
 
-    // --- Privacy Settings Operations (From UserApiService) ---
+    // --- Privacy Settings Operations ---
 
     @GET("users/me/settings")
     suspend fun getPrivacySettings(
         @Header("Authorization") authorization: String
-    ): Response<PrivacySettings> // Assuming PrivacySettings domain model is response
+    ): Response<PrivacySettings> // Stays as Domain model if API matches it exactly
 
     @PATCH("users/me/settings")
     suspend fun updatePrivacySettings(
         @Header("Authorization") authorization: String,
-        @Body settingsUpdate: PrivacySettingsUpdateDto // <<< Use DTO for updates
-    ): Response<PrivacySettings> // Or Response<Unit> if API returns no body
+        @Body settingsUpdate: PrivacySettingsUpdateDto
+    ): Response<PrivacySettings> // Stays as Domain model if API matches it exactly
 
-    // --- Friend/Follow Operations (From UserProfileService) ---
+    // --- Friend/Follow Operations ---
 
-    @GET("users/search") // Search Users by Email
+    // IMPORTANT: Update PaginatedUserResponseDto definition if needed to ensure it contains List<UserDto>
+    // Example: data class PaginatedUserResponseDto<T>( ..., val items: List<T>, ... )
+    // Then the Response would be Response<PaginatedUserResponseDto<UserDto>>
+    // Assuming PaginatedUserResponseDto internally uses UserDto based on previous structure:
+
+    @GET("users/search")
     suspend fun searchUsersByEmail(
         @Query("email") email: String,
-        @Header("Authorization") token: String
-    ): Response<List<User>>
+        @Header("Authorization") token: String,
+        @Query("page") page: Int,        // Assuming paginated search
+        @Query("pageSize") pageSize: Int // Assuming paginated search
+    ): Response<PaginatedUserResponseDto> // <<< KEEP - contains List<UserDto> internally
 
-    @POST("users/{userId}/follow") // Follow User
+    @POST("users/{userId}/follow")
     suspend fun followUser(
         @Path("userId") userId: String,
         @Header("Authorization") token: String
     ): Response<Unit>
 
-    @DELETE("users/{userId}/follow") // Unfollow User
+    @DELETE("users/{userId}/follow")
     suspend fun unfollowUser(
         @Path("userId") userId: String,
         @Header("Authorization") token: String
@@ -92,30 +95,21 @@ interface UserApiService {
     @GET("users/following")
     suspend fun getFollowing(
         @Header("Authorization") token: String,
-        @Query("page") page: Int, // <<< ADD
-        @Query("pageSize") pageSize: Int // <<< ADD
-    ): Response<PaginatedUserResponseDto> // <<< CHANGE Return Type
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int
+    ): Response<PaginatedUserResponseDto> // <<< KEEP - contains List<UserDto> internally
 
     @GET("users/followers")
     suspend fun getFollowers(
         @Header("Authorization") token: String,
-        @Query("page") page: Int, // <<< ADD
-        @Query("pageSize") pageSize: Int // <<< ADD
-    ): Response<PaginatedUserResponseDto> // <<< CHANGE Return Type
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int
+    ): Response<PaginatedUserResponseDto> // <<< KEEP - contains List<UserDto> internally
 
-    @POST("users/{userId}/friend-request") // Send Friend Request (if applicable)
+    @POST("users/{userId}/friend-request")
     suspend fun sendFriendRequest(
         @Path("userId") userId: String,
         @Header("Authorization") token: String
     ): Response<Unit>
 
-    // Note: removed deprecated/duplicate `updateUsername` from UserApiService,
-    //  as `setUsername` is the correct endpoint for username setting.
-    //  Removed local DTOs from original UserApiService and UserProfileService.
-    //  All DTOs should now be in data/remote/dto/UserDtos.kt, ListDtos.kt, PlaceDtos.kt
 }
-
-
-// --- DTOs (Remove these from UserApiService and UserProfileService - they are now in data/remote/dto/UserDtos.kt) ---
-// REMOVE UsernameUpdateRequest, UsernameCheckResponse, UsernameSet, UsernameSetResponse
-// REMOVE UsernameRequest, UsernameResponse, CheckUsernameResponse
