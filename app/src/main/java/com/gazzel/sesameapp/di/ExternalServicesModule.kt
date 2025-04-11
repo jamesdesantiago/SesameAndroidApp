@@ -22,7 +22,7 @@ object ExternalServicesModule {
         // Initialize Places if not already done
         if (!Places.isInitialized()) {
             // Use the key from BuildConfig
-            Places.initialize(context, BuildConfig.MAPS_API_KEY)
+            Places.initialize(context)
         }
         return Places.createClient(context)
     }

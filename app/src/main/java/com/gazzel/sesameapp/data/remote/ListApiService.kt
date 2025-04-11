@@ -1,11 +1,22 @@
+// app/src/main/java/com/gazzel/sesameapp/data/remote/ListApiService.kt
 package com.gazzel.sesameapp.data.remote
 
+// --- Request DTOs ---
 import com.gazzel.sesameapp.data.remote.dto.CollaboratorAddDto
 import com.gazzel.sesameapp.data.remote.dto.ListCreateDto
-import com.gazzel.sesameapp.data.remote.dto.ListDto
 import com.gazzel.sesameapp.data.remote.dto.ListUpdateDto
 import com.gazzel.sesameapp.data.remote.dto.PlaceCreateDto
 import com.gazzel.sesameapp.data.remote.dto.PlaceUpdateDto
+
+// --- Response DTOs ---
+// Import the DTOs we just defined/updated
+import com.gazzel.sesameapp.data.remote.dto.ListDto // For items in paginated list
+import com.gazzel.sesameapp.data.remote.dto.PlaceDto // For place items
+import com.gazzel.sesameapp.data.remote.dto.ListDetailDto // For single list response (metadata only)
+import com.gazzel.sesameapp.data.remote.dto.PaginatedListResponseDto // Wrapper for GET /lists
+import com.gazzel.sesameapp.data.remote.dto.PaginatedPlaceResponseDto // Wrapper for GET /lists/{id}/places
+
+// --- Retrofit Imports ---
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -23,119 +34,133 @@ interface ListApiService {
 
     // --- List CRUD Operations ---
 
+    // POST /lists -> Returns metadata of the created list
     @POST("lists")
     suspend fun createList(
         @Header("Authorization") authorization: String,
-        @Body list: ListCreateDto // Use Request DTO
-    ): Response<ListDto> // Use Response DTO
+        @Body list: ListCreateDto
+    ): Response<ListDetailDto> // <<< Return ListDetailDto (metadata only)
 
+    // GET /lists -> Returns paginated list items (ListViewResponse wrapped)
     @GET("lists")
     suspend fun getUserLists(
         @Header("Authorization") authorization: String,
-        @Query("userId") userId: String? = null, // Optional filter if API supports
-        @Query("public") publicOnly: Boolean? = null // Optional filter if API supports
-    ): Response<List<ListDto>> // Use Response DTO
+        @Query("userId") userId: String? = null, // Keep if your backend still uses this filter
+        @Query("public") publicOnly: Boolean? = null, // Keep if backend uses this
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int
+    ): Response<PaginatedListResponseDto> // <<< Correct: Returns paginated wrapper
 
+    // GET /lists/{listId} -> Returns metadata ONLY for a specific list
     @GET("lists/{listId}")
     suspend fun getListDetail(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String // Consistent path param name
-    ): Response<ListDto> // Use Response DTO (assuming it includes PlaceDtos)
+        @Path("listId") listId: String // Use String if API path expects String ID
+    ): Response<ListDetailDto> // <<< Correct: Returns metadata DTO only
 
-    /**
-     * Updates specific fields of a list. Use PUT if replacing the entire resource.
-     */
-    @PATCH("lists/{listId}") // Prefer PATCH for partial updates
+    // PATCH /lists/{listId} -> Returns updated metadata
+    @PATCH("lists/{listId}")
     suspend fun updateList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Body update: ListUpdateDto // Use Request DTO
-    ): Response<ListDto> // Use Response DTO
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Body update: ListUpdateDto
+    ): Response<ListDetailDto> // <<< Return ListDetailDto (metadata only)
 
+    // DELETE /lists/{listId} -> Returns No Content
     @DELETE("lists/{listId}")
     suspend fun deleteList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String
-    ): Response<Unit> // Often 204 No Content
+        @Path("listId") listId: String // Use String if API path expects String ID
+    ): Response<Unit>
 
     // --- List Discovery/Query Operations ---
+    // TODO: Update these if they also need pagination
 
-    @GET("lists/public") // From AppListService
+    @GET("lists/public")
     suspend fun getPublicLists(
-        // Consider if Authorization is needed for public lists
         @Header("Authorization") authorization: String? = null
-    ): Response<List<ListDto>>
+        // Add pagination params & change return type to PaginatedListResponseDto if needed
+    ): Response<List<ListDto>> // Assuming returns non-paginated ListDto (list view item) for now
 
-    @GET("lists/recent") // From AppListService
+    @GET("lists/recent")
     suspend fun getRecentLists(
         @Header("Authorization") authorization: String,
-        @Query("limit") limit: Int
-    ): Response<List<ListDto>>
+        @Query("limit") limit: Int // Keep limit or change to pagination?
+        // Add pagination params & change return type to PaginatedListResponseDto if needed
+    ): Response<List<ListDto>> // Assuming returns non-paginated ListDto (list view item) for now
 
-    @GET("lists/search") // From AppListService
+    @GET("lists/search")
     suspend fun searchLists(
         @Header("Authorization") authorization: String,
         @Query("q") query: String
-    ): Response<List<ListDto>>
+        // Add pagination params & change return type to PaginatedListResponseDto if needed
+    ): Response<List<ListDto>> // Assuming returns non-paginated ListDto (list view item) for now
 
-    // --- Place Operations (within a List context) ---
+    // --- Places Within a Specific List ---
 
+    // GET /lists/{listId}/places -> Returns paginated places for the list
+    @GET("lists/{listId}/places") // <<< NEW METHOD
+    suspend fun getPlacesInList(
+        @Header("Authorization") authorization: String,
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Query("page") page: Int,
+        @Query("pageSize") pageSize: Int
+    ): Response<PaginatedPlaceResponseDto> // <<< Use new paginated place DTO
+
+    // POST /lists/{listId}/places -> Adds a place, backend returns the created PlaceItem
     @POST("lists/{listId}/places")
     suspend fun addPlace(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Body place: PlaceCreateDto // Use Request DTO
-    ): Response<Unit> // Assuming API returns Unit based on SearchPlacesViewModel usage
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Body place: PlaceCreateDto
+    ): Response<PlaceDto> // <<< Changed to PlaceDto to match backend return
 
-    /**
-     * Updates specific fields of a place within a list.
-     */
-    @PATCH("lists/{listId}/places/{placeId}") // Prefer PATCH for partial updates
+    // PATCH /lists/{listId}/places/{placeId} -> Updates a place, backend returns updated PlaceItem
+    @PATCH("lists/{listId}/places/{placeId}")
     suspend fun updatePlace(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Path("placeId") placeId: String,
-        @Body update: PlaceUpdateDto // Use Request DTO
-    ): Response<Unit> // Or Response<PlaceDto> if API returns updated place
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("placeId") placeId: String, // Use String if API path expects String ID (DB ID is Int though?) -> Clarify API path param type
+        @Body update: PlaceUpdateDto
+    ): Response<PlaceDto> // <<< Changed to PlaceDto to match backend return
 
-    @DELETE("lists/{listId}/places/{placeId}")
-    suspend fun removePlaceFromList( // Combined deletePlace & removePlaceFromList
+    // DELETE /lists/{listId}/places/{placeId} -> Deletes a place, returns No Content
+    @DELETE("lists/{listId}/places/{placeId}") // <<< NEW METHOD
+    suspend fun removePlaceFromList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Path("placeId") placeId: String
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("placeId") placeId: String // Use String if API path expects String ID
     ): Response<Unit>
 
-    // --- Follow Operations --- (From AppListService)
+    // --- List Follow Operations ---
 
     @POST("lists/{listId}/follow")
     suspend fun followList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String
+        @Path("listId") listId: String // Use String if API path expects String ID
     ): Response<Unit>
 
     @DELETE("lists/{listId}/follow")
     suspend fun unfollowList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String
+        @Path("listId") listId: String // Use String if API path expects String ID
     ): Response<Unit>
 
-    // --- Collaborator Operations --- (From UserListService)
+    // --- List Collaborator Operations ---
 
-    @POST("lists/{listId}/collaborators") // Standardized path param
+    @POST("lists/{listId}/collaborators")
     suspend fun addCollaborator(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Body collaborator: CollaboratorAddDto // Use Request DTO
-    ): Response<Unit>
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Body collaborator: CollaboratorAddDto
+    ): Response<Unit> // Or maybe return updated ListDetailDto? Check backend.
 
-    @POST("lists/{listId}/collaborators/batch") // Standardized path param
+    @POST("lists/{listId}/collaborators/batch")
     suspend fun addCollaboratorsBatch(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String,
-        @Body collaborators: List<CollaboratorAddDto> // Use Request DTO
-    ): Response<Unit>
+        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Body collaborators: List<CollaboratorAddDto>
+    ): Response<Unit> // Or maybe return updated ListDetailDto? Check backend.
 
-    // Add remove collaborator endpoint if needed
-    // @DELETE("lists/{listId}/collaborators/{userId}") ...
-
+    // Add DELETE /lists/{listId}/collaborators/{userId} if needed
 }

@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.google.secrets)
 }
 
 // Function to safely load properties (Keep as is)
@@ -50,9 +51,9 @@ android {
             useSupportLibrary = true
         }
 
-        val mapsApiKey = getApiKey(rootProject.rootDir, "MAPS_API_KEY")
-        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
-        manifestPlaceholders["mapsApiKey"] = mapsApiKey
+        //val mapsApiKey = getApiKey(rootProject.rootDir, "MAPS_API_KEY")
+        //buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        //manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {

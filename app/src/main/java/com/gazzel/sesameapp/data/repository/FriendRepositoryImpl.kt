@@ -1,22 +1,32 @@
-// data/repository/FriendRepositoryImpl.kt
+// app/src/main/java/com/gazzel/sesameapp/data/repository/FriendRepositoryImpl.kt
 package com.gazzel.sesameapp.data.repository
 
 import android.util.Log
-// Import the *consolidated* UserApiService
-import com.gazzel.sesameapp.data.remote.UserApiService // <<< CHANGE
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+// Import API Service
+import com.gazzel.sesameapp.data.remote.UserApiService
+// Import PagingSources
+import com.gazzel.sesameapp.data.paging.FollowingPagingSource
+import com.gazzel.sesameapp.data.paging.FollowersPagingSource
+import com.gazzel.sesameapp.data.paging.UserSearchPagingSource // <<< ADDED search source import
 // Import Domain model and Repository interface
 import com.gazzel.sesameapp.domain.model.Friend
 import com.gazzel.sesameapp.domain.repository.FriendRepository
 // Import Result, Exceptions, TokenProvider
-import com.gazzel.sesameapp.domain.auth.TokenProvider // <<< ADD
+import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.exception.AppException
-import com.gazzel.sesameapp.domain.util.Result // Required if adding non-Flow methods later
-// Import Data layer User model
+import com.gazzel.sesameapp.domain.util.Result
+// Import Data layer User model (used by mappers implicitly)
 import com.gazzel.sesameapp.data.model.User as DataUser
+// Import Mapper function correctly
+import com.gazzel.sesameapp.data.mapper.toDomainFriend
 // Coroutine stuff
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -26,169 +36,231 @@ import javax.inject.Singleton
 
 @Singleton
 class FriendRepositoryImpl @Inject constructor(
-    // Inject consolidated UserApiService and TokenProvider
-    private val userApiService: UserApiService, // <<< CHANGE Service type
-    private val tokenProvider: TokenProvider // <<< INJECT TokenProvider
+    private val userApiService: UserApiService,
+    private val tokenProvider: TokenProvider
 ) : FriendRepository {
 
-    // --- Flow for observing Friends (current implementation uses '/following' endpoint) ---
+    companion object {
+        // Define page size consistently
+        const val NETWORK_PAGE_SIZE = 20
+        const val FOLLOWING_ID_FETCH_PAGE_SIZE = 100 // Larger chunk size for fetching all IDs
+    }
+
+    // --- Deprecated Non-Paginated Methods (Consider removing) ---
     override fun getFriends(): Flow<List<Friend>> = flow {
-        Log.d("FriendRepositoryImpl", "Getting friends (using /following endpoint)")
-        val token = tokenProvider.getToken() // Use TokenProvider
-        if (token == null) {
-            Log.w("FriendRepositoryImpl", "No token, cannot get friends.")
-            // Throw exception in flow to signal error
-            throw AppException.AuthException("User not authenticated")
-        }
+        Log.w("FriendRepositoryImpl", "getFriends() called - This method is non-paginated and potentially inefficient. Consider using getFollowingPaginated().")
+        val token = tokenProvider.getToken() ?: throw AppException.AuthException("User not authenticated")
         val authorizationHeader = "Bearer $token"
-
-        // Perform API call within IO context
+        // Attempt to fetch first large page as fallback
         val response = withContext(Dispatchers.IO) {
-            Log.d("FriendRepositoryImpl", "Calling API to get following list...")
-            // Call the method from the CONSOLIDATED service
-            userApiService.getFollowing(authorizationHeader) // Ensure this method exists in UserApiService
+            userApiService.getFollowing(authorizationHeader, page = 1, pageSize = 1000) // High limit, not true pagination
         }
-
         if (response.isSuccessful && response.body() != null) {
-            val followingDataUsers = response.body()!!
-            Log.d("FriendRepositoryImpl", "API getFollowing successful: ${followingDataUsers.size} users.")
-            // Map the API User model to the Domain Friend model
-            // We know these users are being followed because we called /following
+            val followingDataUsers = response.body()!!.items
             val friends = followingDataUsers.map { dataUser -> dataUser.toDomainFriend(isFollowing = true) }
             emit(friends)
         } else {
-            // Throw exception in flow for API errors
-            val errorMsg = "API getFollowing Error ${response.code()}: ${response.errorBody()?.string() ?: response.message()}"
-            Log.e("FriendRepositoryImpl", "Failed to get following: $errorMsg")
-            throw mapApiErrorFriend(response.code(), response.errorBody()?.string()) // Throw mapped exception
-        }
-    }.catch { e -> // Catch exceptions from API call or mapping
-        Log.e("FriendRepositoryImpl", "Error in getFriends flow", e)
-        // Re-throw as AppException or handle as needed
-        throw mapExceptionToAppExceptionFriend(e, "Failed to load friends")
-    }.flowOn(Dispatchers.Default) // Use Default dispatcher for flow logic
-
-
-    // --- Flow for searching Friends ---
-    override fun searchFriends(query: String): Flow<List<Friend>> = flow {
-        Log.d("FriendRepositoryImpl", "Searching friends with query: $query")
-        if (query.isBlank()) {
-            emit(emptyList()) // Return empty immediately if query is blank
-            return@flow
-        }
-        val token = tokenProvider.getToken()
-        if (token == null) {
-            Log.w("FriendRepositoryImpl", "No token, cannot search friends.")
-            throw AppException.AuthException("User not authenticated")
-        }
-        val authorizationHeader = "Bearer $token"
-
-        // Fetch current following list ONCE to determine 'isFollowing' status for search results
-        // This adds an extra API call but is often necessary. Could be optimized with caching.
-        val currentFollowing = try {
-            withContext(Dispatchers.IO) { userApiService.getFollowing(authorizationHeader) }.body()?.map { it.id }?.toSet() ?: emptySet()
-        } catch(e: Exception) {
-            Log.w("FriendRepositoryImpl", "Could not fetch following list for search comparison", e)
-            emptySet<String>() // Proceed without following status if fetch fails
-        }
-
-
-        // API Call for search
-        val response = withContext(Dispatchers.IO) { // <<< IO Dispatcher
-            Log.d("FriendRepositoryImpl", "Calling API to search users by email: $query")
-            // Call the method from the CONSOLIDATED service
-            userApiService.searchUsersByEmail(query, authorizationHeader) // Ensure this method exists
-        }
-
-        if (response.isSuccessful && response.body() != null) {
-            val searchResultDataUsers = response.body()!!
-            Log.d("FriendRepositoryImpl", "API searchUsers successful: ${searchResultDataUsers.size} results.")
-            // Map results, checking against the fetched following list
-            val friends = searchResultDataUsers.map { dataUser ->
-                dataUser.toDomainFriend(isFollowing = currentFollowing.contains(dataUser.id)) // Check if user ID is in the 'following' set
-            }
-            emit(friends)
-        } else {
-            val errorMsg = "API searchUsers Error ${response.code()}: ${response.errorBody()?.string() ?: response.message()}"
-            Log.e("FriendRepositoryImpl", "Failed to search users: $errorMsg")
             throw mapApiErrorFriend(response.code(), response.errorBody()?.string())
         }
     }.catch { e ->
-        Log.e("FriendRepositoryImpl", "Error in searchFriends flow", e)
-        throw mapExceptionToAppExceptionFriend(e, "Failed to search friends")
+        throw mapExceptionToAppExceptionFriend(e, "Failed to load non-paginated friends")
     }.flowOn(Dispatchers.Default)
 
+    override fun searchFriends(query: String): Flow<List<Friend>> = flow {
+        Log.w("FriendRepositoryImpl", "searchFriends() called - This method is non-paginated and potentially inefficient. Consider using searchFriendsPaginated().")
+        if (query.isBlank()) {
+            emit(emptyList())
+            return@flow
+        }
+        val token = tokenProvider.getToken() ?: throw AppException.AuthException("User not authenticated")
+        val authorizationHeader = "Bearer $token"
+        // Fetch current following list ONCE (Inefficient)
+        val currentFollowingIds = fetchCurrentUserFollowingIds() // Use helper
 
-    // --- TODO: Add suspend functions for follow/unfollow if needed by interface ---
-    // Example:
+        // Attempt to fetch first large page as fallback
+        val response = withContext(Dispatchers.IO) {
+            userApiService.searchUsersByEmail(query, authorizationHeader, page = 1, pageSize = 1000) // High limit
+        }
+        if (response.isSuccessful && response.body() != null) {
+            val searchResultDataUsers = response.body()!!.items
+            val friends = searchResultDataUsers.map { dataUser ->
+                dataUser.toDomainFriend(isFollowing = currentFollowingIds.contains(dataUser.id.toString()))
+            }
+            emit(friends)
+        } else {
+            throw mapApiErrorFriend(response.code(), response.errorBody()?.string())
+        }
+    }.catch { e ->
+        throw mapExceptionToAppExceptionFriend(e, "Failed to search non-paginated friends")
+    }.flowOn(Dispatchers.Default)
+
+    // --- Action Methods ---
     override suspend fun followUser(userId: String): Result<Unit> {
+        Log.d("FriendRepositoryImpl", "followUser called for ID: $userId")
         val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
         return try {
             withContext(Dispatchers.IO) {
-                // Ensure followUser exists in the CONSOLIDATED UserApiService
                 val response = userApiService.followUser(userId, "Bearer $token")
-                if (response.isSuccessful || response.code() == 204) {
+                if (response.isSuccessful || response.code() == 201 || response.code() == 200) { // Accept multiple success codes
+                    Log.i("FriendRepositoryImpl", "Successfully followed user $userId (Status: ${response.code()})")
                     Result.success(Unit)
                 } else {
+                    Log.w("FriendRepositoryImpl", "Failed to follow user $userId (Status: ${response.code()})")
                     Result.error(mapApiErrorFriend(response.code(), response.errorBody()?.string()))
                 }
             }
         } catch (e: Exception) {
+            Log.e("FriendRepositoryImpl", "Exception during followUser for $userId", e)
             Result.error(mapExceptionToAppExceptionFriend(e, "Failed to follow user"))
         }
     }
 
     override suspend fun unfollowUser(userId: String): Result<Unit> {
+        Log.d("FriendRepositoryImpl", "unfollowUser called for ID: $userId")
         val token = tokenProvider.getToken() ?: return Result.error(AppException.AuthException("User not authenticated"))
         return try {
             withContext(Dispatchers.IO) {
-                // Ensure unfollowUser exists in the CONSOLIDATED UserApiService
                 val response = userApiService.unfollowUser(userId, "Bearer $token")
-                if (response.isSuccessful || response.code() == 204) {
+                if (response.isSuccessful || response.code() == 204 || response.code() == 200) { // Accept multiple success codes
+                    Log.i("FriendRepositoryImpl", "Successfully unfollowed user $userId (Status: ${response.code()})")
                     Result.success(Unit)
                 } else {
+                    Log.w("FriendRepositoryImpl", "Failed to unfollow user $userId (Status: ${response.code()})")
                     Result.error(mapApiErrorFriend(response.code(), response.errorBody()?.string()))
                 }
             }
         } catch (e: Exception) {
+            Log.e("FriendRepositoryImpl", "Exception during unfollowUser for $userId", e)
             Result.error(mapExceptionToAppExceptionFriend(e, "Failed to unfollow user"))
         }
     }
 
+    // --- Paging Method Implementations ---
+    override fun getFollowingPaginated(): Flow<PagingData<Friend>> {
+        Log.d("FriendRepositoryImpl", "Creating Pager for getFollowingPaginated")
+        return Pager(
+            config = PagingConfig(
+                pageSize = NETWORK_PAGE_SIZE,
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = {
+                Log.d("FriendRepositoryImpl", "Instantiating FollowingPagingSource")
+                FollowingPagingSource(userApiService, tokenProvider)
+            }
+        ).flow
+    }
 
-    // --- Error Mapping Helpers (Specific to FriendRepository or shared) ---
+    override fun getFollowersPaginated(): Flow<PagingData<Friend>> {
+        Log.d("FriendRepositoryImpl", "Creating Pager for getFollowersPaginated")
+        return Pager(
+            config = PagingConfig(
+                pageSize = NETWORK_PAGE_SIZE,
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = {
+                Log.d("FriendRepositoryImpl", "Instantiating FollowersPagingSource")
+                FollowersPagingSource(userApiService, tokenProvider)
+            }
+        ).flow
+    }
+
+    override fun searchFriendsPaginated(query: String): Flow<PagingData<Friend>> {
+        Log.d("FriendRepositoryImpl", "Creating Pager flow for searchFriendsPaginated with query: '$query'")
+        // Wrap Pager creation in a flow to fetch IDs first
+        return flow {
+            // Fetch the set of IDs the current user is following *once* per search initiation
+            val followingIds = fetchCurrentUserFollowingIds()
+            Log.d("FriendRepositoryImpl", "Fetched ${followingIds.size} following IDs for search context.")
+
+            // Create the Pager using the fetched IDs
+            val pagerFlow = Pager(
+                config = PagingConfig(
+                    pageSize = NETWORK_PAGE_SIZE, // Or a different size for search
+                    enablePlaceholders = false
+                ),
+                pagingSourceFactory = {
+                    Log.d("FriendRepositoryImpl", "Instantiating UserSearchPagingSource for query '$query'")
+                    UserSearchPagingSource(userApiService, tokenProvider, query, followingIds)
+                }
+            ).flow
+            // Emit the PagingData stream from the Pager
+            emitAll(pagerFlow)
+        }.flowOn(Dispatchers.IO) // Perform the ID fetching and Pager setup off the main thread
+    }
+
+
+    // --- Helper function to fetch all following IDs ---
+    private suspend fun fetchCurrentUserFollowingIds(): Set<String> {
+        Log.d("FriendRepositoryImpl", "Fetching all following IDs...")
+        val token = tokenProvider.getToken()
+        if (token == null) {
+            Log.e("FriendRepositoryImpl", "Cannot fetch following IDs, token is null.")
+            return emptySet()
+        }
+        val authorizationHeader = "Bearer $token"
+        val ids = mutableSetOf<String>()
+        var currentPage = 1
+        val pageSize = FOLLOWING_ID_FETCH_PAGE_SIZE // Use constant
+
+        try {
+            while (true) {
+                Log.d("FriendRepositoryImpl", "Fetching following IDs page $currentPage (size $pageSize)")
+                val response = userApiService.getFollowing(authorizationHeader, currentPage, pageSize)
+
+                if (response.isSuccessful) {
+                    val paginatedResponse = response.body()
+                    if (paginatedResponse == null || paginatedResponse.items.isEmpty()) {
+                        Log.d("FriendRepositoryImpl", "No more following items found or null body on page $currentPage.")
+                        break // No more items or error
+                    }
+
+                    val pageItems = paginatedResponse.items
+                    pageItems.forEach { ids.add(it.id.toString()) } // Add IDs as strings
+                    Log.d("FriendRepositoryImpl", "Fetched ${pageItems.size} IDs on page $currentPage. Total IDs so far: ${ids.size}")
+
+                    // Check if this was the last page
+                    if (currentPage >= paginatedResponse.totalPages) {
+                        Log.d("FriendRepositoryImpl", "Reached last page (${paginatedResponse.totalPages}).")
+                        break
+                    }
+                    currentPage++
+                } else {
+                    Log.e("FriendRepositoryImpl", "Failed to fetch following IDs page $currentPage: ${response.code()} - ${response.message()}")
+                    // Optionally: break or throw? Breaking returns potentially incomplete set.
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            // Log error and return potentially incomplete set
+            Log.e("FriendRepositoryImpl", "Exception while fetching all following IDs", e)
+        }
+        Log.i("FriendRepositoryImpl", "Finished fetching all following IDs: ${ids.size} found.")
+        return ids
+    }
+
+    // --- Error Mapping Helpers ---
     private fun mapApiErrorFriend(code: Int, errorBody: String?): AppException {
-        Log.e("FriendRepositoryImpl", "API Error $code: ${errorBody ?: "Unknown error"}")
-        // Reuse or adapt mapping logic
+        val defaultMsg = "API Error $code"
+        val bodyMsg = errorBody ?: "No specific error message provided."
+        Log.e("FriendRepositoryImpl", "$defaultMsg: $bodyMsg")
         return when (code) {
-            401, 403 -> AppException.AuthException(errorBody ?: "Authorization failed")
-            404 -> AppException.ResourceNotFoundException(errorBody ?: "User not found")
-            // Add other relevant codes
-            else -> AppException.NetworkException("Network Error ($code): ${errorBody ?: ""}", code)
+            401 -> AppException.AuthException("Authentication failed. Please sign in again.")
+            403 -> AppException.AuthException("Permission denied.")
+            404 -> AppException.ResourceNotFoundException("User or resource not found.")
+            409 -> AppException.ValidationException(errorBody ?: "Conflict detected.")
+            422 -> AppException.ValidationException(errorBody ?: "Invalid data submitted.")
+            in 500..599 -> AppException.NetworkException("Server error ($code). Please try again later.", code)
+            else -> AppException.NetworkException("Network error ($code): $bodyMsg", code)
         }
     }
 
     private fun mapExceptionToAppExceptionFriend(e: Throwable, defaultMessage: String): AppException {
         Log.e("FriendRepositoryImpl", "$defaultMessage: ${e.message}", e)
-        // Reuse or adapt mapping logic
         return when (e) {
-            is retrofit2.HttpException -> mapApiErrorFriend(e.code(), e.response()?.errorBody()?.string() ?: e.message())
-            is IOException -> AppException.NetworkException(e.message ?: "Network error", cause = e)
+            is retrofit2.HttpException -> mapApiErrorFriend(e.code(), e.response()?.errorBody()?.string())
+            is IOException -> AppException.NetworkException("Network connection issue. Please check your connection.", cause = e)
             is AppException -> e
             else -> AppException.UnknownException(e.message ?: defaultMessage, e)
         }
     }
-
-}
-
-// Helper Mapper (Keep as is or move to data/mapper package)
-fun DataUser.toDomainFriend(isFollowing: Boolean): Friend {
-    return Friend(
-        id = this.id.toString(), // Assuming domain Friend uses String ID
-        username = this.username ?: this.email.split("@")[0],
-        displayName = this.displayName,
-        profilePicture = this.profilePicture,
-        listCount = 0, // API doesn't provide this for following/search? Default/fetch later.
-        isFollowing = isFollowing
-    )
 }

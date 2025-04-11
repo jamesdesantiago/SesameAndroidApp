@@ -1,153 +1,150 @@
-// presentation/screens/friends/FriendsViewModel.kt
+// app/src/main/java/com/gazzel/sesameapp/presentation/screens/friends/FriendsViewModel.kt
 package com.gazzel.sesameapp.presentation.screens.friends
 
-import android.util.Log // Add Log import
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.map // Keep for potential future UI model mapping
 import com.gazzel.sesameapp.domain.model.Friend
-// Import Use Cases
-import com.gazzel.sesameapp.domain.usecase.GetFriendsUseCase // <<< ADD
-import com.gazzel.sesameapp.domain.usecase.SearchFriendsUseCase // <<< ADD
-import com.gazzel.sesameapp.domain.usecase.FollowUserUseCase // <<< ADD
-import com.gazzel.sesameapp.domain.usecase.UnfollowUserUseCase // <<< ADD
-// Import Result and extensions
+// Import Paginated Use Cases
+import com.gazzel.sesameapp.domain.usecase.GetFollowingPaginatedUseCase
+import com.gazzel.sesameapp.domain.usecase.GetFollowersPaginatedUseCase
+import com.gazzel.sesameapp.domain.usecase.SearchFriendsPaginatedUseCase // <<< Import Paginated Search Use Case
+// Import Action Use Cases
+import com.gazzel.sesameapp.domain.usecase.FollowUserUseCase
+import com.gazzel.sesameapp.domain.usecase.UnfollowUserUseCase
+// Import Result Utils
 import com.gazzel.sesameapp.domain.util.Result
 import com.gazzel.sesameapp.domain.util.onError
 import com.gazzel.sesameapp.domain.util.onSuccess
-// Other imports
+// Hilt and Coroutines
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// State for follow/unfollow actions and errors (Keep as is)
+sealed class FriendActionState {
+    object Idle : FriendActionState()
+    data class Error(val message: String, val failedActionUserId: String? = null) : FriendActionState()
+}
+
+// Enum for tabs (Keep as is)
+enum class FriendTab { FOLLOWING, FOLLOWERS }
+
+@OptIn(ExperimentalCoroutinesApi::class) // For flatMapLatest
 @HiltViewModel
 class FriendsViewModel @Inject constructor(
-    // Inject Use Cases instead of Repository
-    private val getFriendsUseCase: GetFriendsUseCase,         // <<< CHANGE
-    private val searchFriendsUseCase: SearchFriendsUseCase,   // <<< CHANGE
-    private val followUserUseCase: FollowUserUseCase,       // <<< CHANGE
-    private val unfollowUserUseCase: UnfollowUserUseCase     // <<< CHANGE
+    // Inject Paginated Use Cases
+    private val getFollowingPaginatedUseCase: GetFollowingPaginatedUseCase,
+    private val getFollowersPaginatedUseCase: GetFollowersPaginatedUseCase,
+    private val searchFriendsPaginatedUseCase: SearchFriendsPaginatedUseCase, // <<< Inject Paginated Search
+    // Inject Action Use Cases
+    private val followUserUseCase: FollowUserUseCase,
+    private val unfollowUserUseCase: UnfollowUserUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<FriendsUiState>(FriendsUiState.Loading)
-    val uiState: StateFlow<FriendsUiState> = _uiState.asStateFlow()
+    // --- State for Search Query ---
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // Keep track of the search job to cancel previous searches
-    private var searchJob: Job? = null
-    // Keep track of ongoing follow/unfollow operations to prevent rapid clicks
-    private val _pendingActions = MutableStateFlow<Set<String>>(emptySet()) // Set of user IDs being acted upon
+    // --- State for Selected Tab ---
+    private val _selectedTab = MutableStateFlow(FriendTab.FOLLOWING)
+    val selectedTab: StateFlow<FriendTab> = _selectedTab.asStateFlow()
 
-    init {
-        loadFriends()
-    }
-
-    private fun loadFriends() {
-        // Don't reload if already loading to avoid redundant calls
-        if (_uiState.value is FriendsUiState.Loading) return
-
-        _uiState.value = FriendsUiState.Loading
-        viewModelScope.launch {
-            Log.d("FriendsViewModel", "Loading initial friends list...")
-            getFriendsUseCase() // Use Case returns Flow
-                .catch { e ->
-                    Log.e("FriendsViewModel", "Error loading friends", e)
-                    _uiState.value = FriendsUiState.Error(e.message ?: "Failed to load friends")
+    // --- Combined Flow for Display ---
+    // Switches between following, followers, or paginated search based on query and tab
+    val displayDataFlow: Flow<PagingData<Friend>> =
+        combine(_searchQuery, _selectedTab) { query, tab -> query to tab }
+            // Debounce searches slightly to avoid spamming API/DB during typing
+            .debounce(300L) // Adjust debounce time as needed (e.g., 300-500ms)
+            .flatMapLatest { (query, tab) ->
+                if (query.isBlank()) {
+                    // Show paginated data based on the selected tab
+                    when (tab) {
+                        FriendTab.FOLLOWING -> {
+                            Log.d("FriendsViewModel", "Query blank, Tab Following: using getFollowingPaginatedUseCase")
+                            getFollowingPaginatedUseCase()
+                        }
+                        FriendTab.FOLLOWERS -> {
+                            Log.d("FriendsViewModel", "Query blank, Tab Followers: using getFollowersPaginatedUseCase")
+                            getFollowersPaginatedUseCase()
+                        }
+                    }
+                } else {
+                    // --- Use the Paginated Search Use Case ---
+                    Log.d("FriendsViewModel", "Query present ('$query'), using SearchFriendsPaginatedUseCase")
+                    searchFriendsPaginatedUseCase(query) // <<< CALL Paginated Search Use Case
                 }
-                .collect { friends ->
-                    Log.d("FriendsViewModel", "Received ${friends.size} friends.")
-                    _uiState.value = FriendsUiState.Success(friends)
-                }
-        }
-    }
-
-    fun searchFriends(query: String) {
-        searchJob?.cancel() // Cancel previous search if any
-
-        if (query.isBlank()) {
-            // If query is cleared, reload the full friend list instead of showing empty search results
-            if (_uiState.value !is FriendsUiState.Loading) { // Avoid triggering reload if already loading friends
-                loadFriends()
             }
-            return
-        }
+            .cachedIn(viewModelScope) // Cache the final PagingData flow
 
-        // Only set loading state for actual search, not for blank query
-        _uiState.value = FriendsUiState.Loading(isSearch = true) // Indicate search loading
+    // --- State for Follow/Unfollow Actions ---
+    private val _actionState = MutableStateFlow<FriendActionState>(FriendActionState.Idle)
+    val actionState: StateFlow<FriendActionState> = _actionState.asStateFlow()
+    private val _pendingActions = MutableStateFlow<Set<String>>(emptySet())
 
-        searchJob = viewModelScope.launch {
-            Log.d("FriendsViewModel", "Searching friends with query: $query")
-            searchFriendsUseCase(query) // Use Case returns Flow
-                .catch { e ->
-                    Log.e("FriendsViewModel", "Error searching friends", e)
-                    _uiState.value = FriendsUiState.Error(e.message ?: "Failed to search friends")
-                }
-                .collect { searchResults ->
-                    Log.d("FriendsViewModel", "Search returned ${searchResults.size} results.")
-                    // Update state with search results
-                    _uiState.value = FriendsUiState.Success(searchResults)
-                }
+    // --- Functions ---
+
+    fun setSearchQuery(query: String) {
+        // Update the query state. The combine/flatMapLatest logic will automatically
+        // trigger the appropriate use case (following/followers or search).
+        _searchQuery.value = query.trim()
+    }
+
+    fun selectTab(tab: FriendTab) {
+        if (_selectedTab.value != tab) {
+            Log.d("FriendsViewModel", "Switching tab to: $tab")
+            _selectedTab.value = tab
+            // Clear search when switching tabs to show the full list for the new tab
+            if (_searchQuery.value.isNotBlank()) {
+                _searchQuery.value = ""
+                Log.d("FriendsViewModel", "Search query cleared due to tab switch.")
+            }
         }
     }
 
     fun followUser(userId: String) {
-        // Prevent action if already pending for this user
-        if (_pendingActions.value.contains(userId)) return
-        _pendingActions.update { it + userId } // Mark as pending
-
-        viewModelScope.launch {
-            Log.d("FriendsViewModel", "Attempting to follow user: $userId")
-            val result = followUserUseCase(userId) // Call Use Case
-
-            result.onSuccess {
-                Log.d("FriendsViewModel", "Successfully followed $userId. Updating UI state.")
-                // Optimistically update the UI state
-                _uiState.update { currentState ->
-                    if (currentState is FriendsUiState.Success) {
-                        currentState.copy(friends = currentState.friends.map {
-                            if (it.id == userId) it.copy(isFollowing = true) else it
-                        })
-                    } else currentState // Should ideally not happen if action was possible
-                }
-            }.onError { exception ->
-                Log.e("FriendsViewModel", "Failed to follow $userId: ${exception.message}")
-                // TODO: Show temporary error message to user (e.g., via Snackbar/Event)
-            }
-            _pendingActions.update { it - userId } // Unmark as pending
-        }
+        performFollowAction(userId) { followUserUseCase(userId) }
     }
 
     fun unfollowUser(userId: String) {
-        // Prevent action if already pending for this user
-        if (_pendingActions.value.contains(userId)) return
-        _pendingActions.update { it + userId } // Mark as pending
+        performFollowAction(userId) { unfollowUserUseCase(userId) }
+    }
+
+    private fun performFollowAction(userId: String, action: suspend (String) -> Result<Unit>) {
+        if (_pendingActions.value.contains(userId)) {
+            Log.w("FriendsViewModel", "Action already pending for user $userId")
+            return
+        }
+        _pendingActions.update { it + userId }
+        _actionState.value = FriendActionState.Idle // Reset previous errors
 
         viewModelScope.launch {
-            Log.d("FriendsViewModel", "Attempting to unfollow user: $userId")
-            val result = unfollowUserUseCase(userId) // Call Use Case
+            Log.i("FriendsViewModel", "Performing follow/unfollow action for user: $userId")
+            val result = action(userId)
 
             result.onSuccess {
-                Log.d("FriendsViewModel", "Successfully unfollowed $userId. Updating UI state.")
-                // Optimistically update the UI state
-                _uiState.update { currentState ->
-                    if (currentState is FriendsUiState.Success) {
-                        currentState.copy(friends = currentState.friends.map {
-                            if (it.id == userId) it.copy(isFollowing = false) else it
-                        })
-                    } else currentState
-                }
+                Log.i("FriendsViewModel", "Action success for $userId. Manual UI refresh needed.")
+                // TODO: Emit event to trigger lazyPagingItems.refresh() in UI for immediate feedback
             }.onError { exception ->
-                Log.e("FriendsViewModel", "Failed to unfollow $userId: ${exception.message}")
-                // TODO: Show temporary error message to user (e.g., via Snackbar/Event)
+                Log.e("FriendsViewModel", "Action failed for $userId: ${exception.message}")
+                _actionState.value = FriendActionState.Error(
+                    message = exception.message ?: "Action failed",
+                    failedActionUserId = userId
+                )
             }
-            _pendingActions.update { it - userId } // Unmark as pending
+            _pendingActions.update { it - userId } // Ensure cleared on success or error
         }
     }
-}
 
-// Update UiState to differentiate search loading if needed
-sealed class FriendsUiState {
-    data class Loading(val isSearch: Boolean = false) : FriendsUiState() // Differentiate initial vs search load
-    data class Success(val friends: List<Friend>) : FriendsUiState()
-    data class Error(val message: String) : FriendsUiState()
+    fun clearError() {
+        if (_actionState.value is FriendActionState.Error) {
+            _actionState.value = FriendActionState.Idle
+        }
+    }
 }

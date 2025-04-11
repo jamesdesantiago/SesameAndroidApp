@@ -3,23 +3,20 @@ package com.gazzel.sesameapp.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 data class ListDto(
-    @SerializedName("id") // <-- CHANGE Annotation
-    val id: String = "",
-    @SerializedName("title") // <-- CHANGE Annotation
-    val title: String = "",
-    @SerializedName("description") // <-- CHANGE Annotation
+    @SerializedName("id")
+    val id: Int = 0, // <<< MATCH Backend type (Int)
+
+    @SerializedName("name") // Assuming backend uses 'name'
+    val name: String = "", // <<< Use 'name' to match backend
+
+    @SerializedName("description")
     val description: String? = null,
-    @SerializedName("userId") // <-- CHANGE Annotation (adjust JSON key if different)
-    val userId: String = "",
-    // Adjust type based on what your FastAPI returns for timestamps
-    @SerializedName("createdAt") // <-- CHANGE Annotation
-    val createdAt: Long = 0L, // Example: Assuming Long (Unix millis)
-    @SerializedName("updatedAt") // <-- CHANGE Annotation
-    val updatedAt: Long = 0L, // Example: Assuming Long (Unix millis)
-    @SerializedName("isPublic") // <-- CHANGE Annotation (adjust JSON key if different)
-    val isPublic: Boolean = false,
-    @SerializedName("placeCount") // <-- CHANGE Annotation
-    val placeCount: Int = 0,
-    @SerializedName("followerCount") // <-- CHANGE Annotation
-    val followerCount: Int = 0
+
+    // Matches backend 'isPrivate', adjust SerializedName if JSON key is 'is_private'
+    @SerializedName("isPrivate")
+    val isPrivate: Boolean = false,
+
+    // Matches backend 'place_count', adjust SerializedName if JSON key is 'place_count'
+    @SerializedName("place_count")
+    val placeCount: Int = 0
 )

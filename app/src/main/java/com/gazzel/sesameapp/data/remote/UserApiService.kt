@@ -7,6 +7,7 @@ import com.gazzel.sesameapp.data.remote.dto.UserProfileUpdateDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameCheckResponseDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameSetResponseDto
 import com.gazzel.sesameapp.data.remote.dto.UsernameSetDto
+import com.gazzel.sesameapp.data.remote.dto.PaginatedUserResponseDto
 import com.gazzel.sesameapp.domain.model.PrivacySettings
 import retrofit2.Response
 import retrofit2.http.Body
@@ -88,15 +89,19 @@ interface UserApiService {
         @Header("Authorization") token: String
     ): Response<Unit>
 
-    @GET("users/following") // Get Following List
+    @GET("users/following")
     suspend fun getFollowing(
-        @Header("Authorization") token: String
-    ): Response<List<User>>
+        @Header("Authorization") token: String,
+        @Query("page") page: Int, // <<< ADD
+        @Query("pageSize") pageSize: Int // <<< ADD
+    ): Response<PaginatedUserResponseDto> // <<< CHANGE Return Type
 
-    @GET("users/followers") // Get Followers List
+    @GET("users/followers")
     suspend fun getFollowers(
-        @Header("Authorization") token: String
-    ): Response<List<User>>
+        @Header("Authorization") token: String,
+        @Query("page") page: Int, // <<< ADD
+        @Query("pageSize") pageSize: Int // <<< ADD
+    ): Response<PaginatedUserResponseDto> // <<< CHANGE Return Type
 
     @POST("users/{userId}/friend-request") // Send Friend Request (if applicable)
     suspend fun sendFriendRequest(

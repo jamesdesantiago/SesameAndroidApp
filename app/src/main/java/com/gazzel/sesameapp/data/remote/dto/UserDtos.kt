@@ -112,14 +112,4 @@ data class UserResponseDto(
 )
 */
 
-// --- Collaborator DTOs --- (Often grouped with List DTOs, but can be here too)
-
-/**
- * DTO for adding a collaborator to a list (usually by email).
- * Used as request body for POST /lists/{listId}/collaborators
- */
-data class CollaboratorAddDto(
-    val email: String
-)
-
 // Add other User-related DTOs as needed for requests or specific responses.
