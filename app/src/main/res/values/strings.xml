@@ -37,6 +37,7 @@
     <string name="cd_back_button">Back</string>
     <string name="dialog_delete_confirm_button">Delete</string>
     <string name="dialog_delete_cancel_button">Cancel</string>
+    <string name="button_grant_permission">Grant Permission</string>
 
     <!-- Potentially moved from other screens -->
     <string name="label_username">Username</string>

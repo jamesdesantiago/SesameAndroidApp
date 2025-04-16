@@ -1,147 +1,112 @@
-package com.gazzel.sesameapp.presentation.screens.home
+// presentation/viewmodels/HomeViewModel.kt
+package com.gazzel.sesameapp.presentation.viewmodels
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+// Import Use Case and its Result Data Class
+import com.gazzel.sesameapp.domain.usecase.GetHomeMapDataUseCase // <<< Use Case
+import com.gazzel.sesameapp.domain.usecase.HomeScreenData // <<< Use Case Result
+// Import necessary Domain models
 import com.gazzel.sesameapp.domain.model.PlaceItem
-import com.gazzel.sesameapp.domain.repository.LocationRepository
-import com.gazzel.sesameapp.domain.repository.PlaceRepository
+import com.gazzel.sesameapp.domain.model.User
+import com.gazzel.sesameapp.domain.model.SesameList
+// Import Result and extensions
 import com.gazzel.sesameapp.domain.util.Result
 import com.gazzel.sesameapp.domain.util.onError
 import com.gazzel.sesameapp.domain.util.onSuccess
+// Import LatLng
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
-// --- Sealed class for UI State (Keep as is) ---
+// Updated Success state to hold the combined data object
 sealed class HomeUiState {
-    object Initial : HomeUiState() // Might not be needed if starting in Loading
+    object Initial : HomeUiState()
     object Loading : HomeUiState()
-    data class Success(
-        val location: LatLng,
-        val places: List<PlaceItem>, // All places fetched
-        val filteredPlaces: List<PlaceItem> // Places within radius
-    ) : HomeUiState()
-    data class Error(val message: String) : HomeUiState()
+    data class Success(val data: HomeScreenData) : HomeUiState() // <<< Holds HomeScreenData
+    data class Error(val message: String, val isPermissionError: Boolean = false) : HomeUiState()
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val placeRepository: PlaceRepository,
-    private val locationRepository: LocationRepository
+    private val getHomeMapDataUseCase: GetHomeMapDataUseCase // <<< Inject Use Case
+    // Remove direct repository injections
 ) : ViewModel() {
 
-    companion object {
-        private const val DEFAULT_RADIUS_KM = 1.0
-        private const val EARTH_RADIUS_KM = 6371
-    }
-
-    // Start in Loading state as we immediately try to fetch location/places
-    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
+    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Initial)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    // Note: Consider triggering data loading from the UI via a LaunchedEffect
-    // instead of automatically in init, especially if location permission
-    // isn't guaranteed at ViewModel creation. For now, keeping init call.
-    // init {
-    //    checkPermissionAndLoadData() // Or a similar starting function
-    // }
+    // Keep search specific state if needed
+    private val _searchResults = MutableStateFlow<List<SesameList>>(emptyList())
+    val searchResults: StateFlow<List<SesameList>> = _searchResults.asStateFlow()
+    private var isSearchActive = false // Track if search is active
 
-    /**
-     * Called when location permission is granted by the UI.
-     * Attempts to retrieve current location and then fetch places.
-     */
-    fun onLocationPermissionGranted() {
-        // Can be called from UI after permission check/grant
-        loadInitialData()
+    // Triggered by UI after permission grant
+    fun loadDataAfterPermission() {
+        if (_uiState.value is HomeUiState.Loading || _uiState.value is HomeUiState.Success) return
+        loadHomeData()
     }
 
-    /**
-     * Triggers the initial data load sequence: get location, then places.
-     */
-    private fun loadInitialData() {
+    private fun loadHomeData() {
         viewModelScope.launch {
-            // Ensure loading state is set
-            if (_uiState.value !is HomeUiState.Loading) {
-                _uiState.value = HomeUiState.Loading
-            }
-            Log.d("HomeViewModel", "Permission likely granted, fetching location...")
+            _uiState.value = HomeUiState.Loading
+            Log.d("HomeViewModel", "Calling GetHomeMapDataUseCase...")
+            val result = getHomeMapDataUseCase() // Call the combined Use Case
 
-            // Call repo method returning Result<LatLng>
-            val locationResult: Result<LatLng> = locationRepository.getCurrentLocation()
-
-            // Handle Result using extensions
-            locationResult.onSuccess { latLng ->
-                // Location fetched successfully
-                Log.d("HomeViewModel", "Location success: $latLng. Fetching places...")
-                // Now fetch places using the successful location
-                fetchPlacesAndFilter(latLng) // Pass non-null LatLng
+            result.onSuccess { homeScreenData ->
+                Log.d("HomeViewModel", "UseCase successful. User: ${homeScreenData.user.id}, Nearby: ${homeScreenData.nearbyPlaces.size}, Recent: ${homeScreenData.recentLists.size}")
+                _uiState.value = HomeUiState.Success(homeScreenData) // Update state with combined data
+                // Reset search results when refreshing main data
+                _searchResults.value = emptyList()
+                isSearchActive = false
             }.onError { exception ->
-                // Location fetch failed
-                Log.e("HomeViewModel", "Failed to get location: ${exception.message}", exception)
-                _uiState.value = HomeUiState.Error(exception.message ?: "Failed to get location")
+                Log.e("HomeViewModel", "UseCase failed: ${exception.message}", exception)
+                val isPermissionError = exception.message?.contains("permission", ignoreCase = true) == true
+                _uiState.value = HomeUiState.Error(exception.message ?: "Failed to load home data", isPermissionError)
             }
         }
     }
 
-    /**
-     * Fetches places from the repository and filters them based on the provided location.
-     * Assumes the UI state is already Loading or will be set appropriately before calling.
-     */
-    private suspend fun fetchPlacesAndFilter(location: LatLng) {
-        Log.d("HomeViewModel", "Fetching places...")
-        // Call repo method returning Result<List<PlaceItem>>
-        val placesResult: Result<List<PlaceItem>> = placeRepository.getPlaces()
-
-        // Handle Result
-        placesResult.onSuccess { places -> // places is non-null List<PlaceItem>
-            Log.d("HomeViewModel", "Places fetched successfully: ${places.size} items.")
-            val filteredPlaces = places.filter { place ->
-                calculateDistance(
-                    location.latitude, location.longitude,
-                    place.latitude, place.longitude
-                ) <= DEFAULT_RADIUS_KM
+    // Search still operates on ListRepository (or a dedicated SearchUseCase)
+    // This updates a separate state for now, or could update the lists within HomeUiState.Success
+    @Inject lateinit var listRepository: ListRepository // Quick inject for example, better via SearchUseCase
+    fun searchLists(query: String) {
+        if (query.isBlank()) {
+            isSearchActive = false
+            // Reload initial lists if query cleared? Or just show recents from current state?
+            (_uiState.value as? HomeUiState.Success)?.data?.recentLists?.let {
+                _searchResults.value = it // Show recent lists when search cleared
             }
-            Log.d("HomeViewModel", "Filtered ${filteredPlaces.size} places within radius.")
-            _uiState.value = HomeUiState.Success(
-                location = location,
-                places = places, // Keep all fetched places
-                filteredPlaces = filteredPlaces // Filtered list for map
-            )
-        }.onError { exception ->
-            Log.e("HomeViewModel", "Failed to get places: ${exception.message}", exception)
-            // Set error state, potentially retaining last known location if available
-            // For simplicity now, just set the error message.
-            _uiState.value = HomeUiState.Error(exception.message ?: "Failed to load places")
+            return
+        }
+        isSearchActive = true
+        viewModelScope.launch {
+            // Indicate search loading? Maybe not change main state, just clear results?
+            _searchResults.value = emptyList() // Clear previous results
+            Log.d("HomeViewModel", "Searching lists for query: $query")
+            val searchResult = listRepository.searchLists(query) // Or SearchListsUseCase(query)
+
+            searchResult.onSuccess { searchLists ->
+                Log.d("HomeViewModel", "Search successful, found ${searchLists.size} lists.")
+                _searchResults.value = searchLists // Update search results state
+            }.onError { exception ->
+                Log.e("HomeViewModel", "List search failed: ${exception.message}", exception)
+                _searchResults.value = emptyList() // Clear results on error
+                // TODO: Emit search error event
+            }
         }
     }
 
-    /**
-     * Calculates the distance (in kilometers) between two lat-long points. (Keep as is)
-     */
-    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val dLat = Math.toRadians(lat2 - lat1);
-        val dLon = Math.toRadians(lon2 - lon1);
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-                sin(dLon / 2) * sin(dLon / 2);
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a));
-        return EARTH_RADIUS_KM * c;
-    }
 
-    // Public function for UI to trigger a refresh
-    fun refreshData() {
+    fun refresh() {
         Log.d("HomeViewModel", "Refresh triggered.")
-        // Consider re-checking permission here if it could have been revoked,
-        // or rely on the UI to only enable refresh if permission is granted.
-        loadInitialData() // Re-run the load sequence
+        loadHomeData()
+    }
+
+    fun handlePermissionDenied() {
+        _uiState.value = HomeUiState.Error("Location permission is required.", isPermissionError = true)
     }
 }
