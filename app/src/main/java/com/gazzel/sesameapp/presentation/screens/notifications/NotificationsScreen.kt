@@ -43,8 +43,6 @@ fun NotificationsScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back_button)) // <<< Use String Res
                     }
                 }
-                // TODO: Add "Mark all as read" action?
-                // actions = { TextButton(onClick = { viewModel.markAllAsRead() }) { Text("Mark All Read") } }
             )
         }
     ) { paddingValues ->

@@ -29,6 +29,7 @@
 
     <!-- Common -->
     <string name="state_loading">Loading…</string>
+    <string name="state_initializing">Initializing…</string>
     <string name="label_title">Title</string>
     <string name="label_description">Description</string>
     <string name="button_retry">Retry</string>
@@ -158,4 +159,94 @@
     <string name="home_error_loading_places">Failed to load places nearby.</string>
     <string name="home_location_permission_rationale">Location permission is needed to show nearby places on the map.</string> <!-- Example Rationale -->
 
+    <!-- Search Places Screen -->
+    <string name="search_places_title">Add Place to List</string> <!-- Added -->
+    <string name="label_search_place">Search for a place…</string>
+    <string name="label_start_typing_search">Start typing to search…</string> <!-- Added -->
+    <string name="search_places_searching_text">Searching for \"%1$s\"…</string> <!-- Added -->
+    <string name="search_places_no_suggestions">No suggestions found for \"%1$s\".</string> <!-- Added -->
+    <string name="search_places_loading_details">Loading details for %1$s…</string> <!-- Added -->
+    <string name="search_places_default_place_name">place</string> <!-- Added -->
+    <string name="search_places_getting_rating_status">Getting rating/status…</string> <!-- Added -->
+    <string name="search_places_adding_place">Adding %1$s…</string> <!-- Added -->
+    <string name="search_places_added_success">Place Added!</string> <!-- Added -->
+    <string name="search_places_error_occurred">An error occurred. See message below.</string> <!-- Added -->
+    <string name="button_skip_adding_place">Skip Adding Place</string>
+    <string name="snackbar_dismiss">Dismiss</string> <!-- Added for Snackbar action -->
+
+    <!-- SearchPlacesOverlay (assuming these strings are used inside it) -->
+    <string name="overlay_google_rating">Google Rating: %1$.1f</string> <!-- Added -->
+    <string name="overlay_button_add_rating_status">Add Rating/Status (Optional)</string> <!-- Added -->
+    <string name="overlay_button_add_directly">Add Directly</string> <!-- Added -->
+    <string name="overlay_title_ask_visit">Have you been to %1$s?</string> <!-- Added -->
+    <string name="overlay_button_visited">Yes, Visited</string> <!-- Added -->
+    <string name="overlay_button_want_to_visit">Want to Visit</string> <!-- Added -->
+    <string name="overlay_button_skip_step">Skip this step</string> <!-- Added -->
+    <string name="overlay_title_ask_rating">How would you rate %1$s?</string> <!-- Added -->
+    <string name="overlay_button_rating_must_visit">⭐ Must Visit!</string> <!-- Added -->
+    <string name="overlay_button_rating_worth_visiting">👍 Worth Visiting</string> <!-- Added -->
+    <string name="overlay_button_rating_not_worth_visiting">👎 Not Worth Visiting</string> <!-- Added -->
+    <string name="overlay_button_skip_rating">Skip Rating</string> <!-- Added -->
+    <string name="cd_close_overlay">Close</string> <!-- Added -->
+
+    <!-- Share Dialog -->
+    <string name="share_dialog_title">Share List</string>
+    <string name="share_dialog_body">Share this list with others via a link.</string> <!-- Adjusted text slightly -->
+    <string name="button_generate_link">Generate Link</string>
+    <string name="dialog_button_close">Close</string>
+    <string name="cd_copy_link">Copy link</string>
+    <string name="link_copied_feedback">Link copied to clipboard!</string> <!-- Added for feedback -->
+
+    <!-- Share Overlay (Generic, can be reused) -->
+    <string name="share_overlay_title">Share</string>
+    <string name="share_via_whatsapp">WhatsApp</string>
+    <string name="share_via_instagram">Instagram</string>
+    <string name="share_via_sms">SMS</string>
+    <string name="share_copy_link">Copy link</string>
+    <string name="share_error_app_not_installed">%1$s not installed</string> <!-- For WhatsApp/Instagram error -->
+    <string name="share_error_sms_unavailable">SMS app not available</string>
+    <string name="cd_share_via_app">Share via %1$s</string>
+    <string name="cd_send_icon">Send</string>
+
+    <!-- Note Components -->
+    <string name="note_viewer_title">Note</string>
+    <string name="cd_edit_note">Edit Note</string>
+    <string name="cd_close_viewer">Close Note Viewer</string> <!-- More specific -->
+    <string name="note_viewer_empty_placeholder">No note added yet.</string>
+    <string name="note_editor_title">Edit Note</string>
+    <string name="label_enter_note">Enter your note</string>
+    <string name="cd_save_note">Save Note</string>
+    <string name="button_save_note">Save</string>
+
+    <!-- Edit List Name Dialog -->
+    <string name="dialog_edit_list_name_title">Edit List Name</string>
+    <string name="label_list_name">List Name</string>
+    <string name="button_save">Save</string>
+
+    <!-- Delete Confirm Dialog -->
+    <string name="dialog_delete_confirm_title">Delete List?</string> <!-- Generic Title -->
+    <!-- Reusing dialog_delete_list_text: "Are you sure you want to delete \"%1$s\"? This cannot be undone." -->
+    <!-- Reusing dialog_delete_confirm_button: "Delete" -->
+    <!-- Reusing dialog_button_cancel: "Cancel" -->
+    <string name="dialog_delete_confirm_button_yes">Yes, Delete</string> <!-- Specific version if preferred -->
+    <string name="dialog_delete_cancel_button_no">No, Cancel</string> <!-- Specific version if preferred -->
+
+    <!-- Delete Success Dialog -->
+    <string name="dialog_delete_success_title">The list \"%1$s\" has been deleted</string>
+
+    <!-- Dropdown Menu Actions -->
+    <string name="menu_action_make_public">Make Public</string>
+    <string name="menu_action_make_private">Make Private</string>
+    <string name="menu_action_edit_list_name">Edit List Name</string>
+    <string name="menu_action_merge_list">Merge List</string>
+    <string name="menu_action_delete_list">Delete List</string>
+    <string name="menu_action_share">Share</string>
+    <string name="menu_action_tags">Tags</string>
+    <string name="menu_action_notes">Notes</string>
+    <string name="menu_action_add_to_list">Add to Different List</string>
+    <string name="menu_action_delete_item">Delete Item</string>
+
+    <!-- Tab Labels -->
+    <string name="tab_label_list">List</string>
+    <string name="tab_label_map">Map</string>
 </resources>

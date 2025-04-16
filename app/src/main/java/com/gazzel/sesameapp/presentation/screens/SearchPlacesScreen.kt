@@ -1,25 +1,29 @@
 package com.gazzel.sesameapp.presentation.screens.search // Keep correct package
 
+// Import R from *your* package, not android.R
+import com.gazzel.sesameapp.R // <<< Correct R import
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.* // Use wildcard layout import
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.* // Use wildcard material3 import
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // <<< Import stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 // Import the moved components
-import com.gazzel.sesameapp.presentation.components.search.SearchPlacesOverlay
-import com.gazzel.sesameapp.presentation.components.search.SuggestionItem
+import com.gazzel.sesameapp.presentation.components.search.SearchPlacesOverlay // Assume these exist
+import com.gazzel.sesameapp.presentation.components.search.SuggestionItem // Assume these exist
 import com.gazzel.sesameapp.ui.theme.SesameAppTheme
-import kotlinx.coroutines.launch // Import launch
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,10 +47,11 @@ fun SearchPlacesScreen(
         }
         // Show snackbar on error
         if (uiState is SearchPlacesUiState.Error) {
+            val errorMessage = (uiState as SearchPlacesUiState.Error).message
             scope.launch {
                 val result = snackbarHostState.showSnackbar(
-                    message = (uiState as SearchPlacesUiState.Error).message,
-                    actionLabel = "Dismiss",
+                    message = errorMessage, // Use the message from the state
+                    actionLabel = stringResource(id = R.string.snackbar_dismiss), // Use string resource
                     duration = SnackbarDuration.Long
                 )
                 if (result == SnackbarResult.ActionPerformed) {
@@ -64,10 +69,13 @@ fun SearchPlacesScreen(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = { Text("Add Place to List") },
+                        title = { Text(stringResource(R.string.search_places_title)) }, // <<< Use stringResource
                         navigationIcon = {
                             IconButton(onClick = { navController.popBackStack() }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = stringResource(R.string.cd_back_button) // <<< Use stringResource
+                                )
                             }
                         }
                     )
@@ -86,7 +94,8 @@ fun SearchPlacesScreen(
                             query = it
                             viewModel.updateQuery(it)
                         },
-                        label = { Text("Search for a place...") },
+                        // <<< FIX: Pass Text composable to label, use stringResource >>>
+                        label = { Text(stringResource(R.string.label_search_place)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = uiState !is SearchPlacesUiState.AddingPlace && uiState !is SearchPlacesUiState.LoadingDetails
@@ -96,19 +105,29 @@ fun SearchPlacesScreen(
                     // --- Handle Different UI States (Error display removed from here) ---
                     when (val state = uiState) {
                         is SearchPlacesUiState.Idle -> {
-                            Text("Start typing to search...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // <<< FIX: Pass Text composable, use stringResource >>>
+                            Text(
+                                stringResource(R.string.label_start_typing_search), // <<< Use new string ID
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         is SearchPlacesUiState.Searching -> {
                             CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
-                            Text("Searching for \"${state.query}\"...", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.search_places_searching_text, state.query), // <<< Use stringResource with placeholder
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                         is SearchPlacesUiState.SuggestionsLoaded -> {
                             if (state.suggestions.isEmpty()) {
-                                Text("No suggestions found for \"${state.query}\".", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    stringResource(R.string.search_places_no_suggestions, state.query), // <<< Use stringResource with placeholder
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             } else {
                                 LazyColumn(modifier = Modifier.weight(1f)) {
                                     items(state.suggestions, key = { it.placeId }) { prediction ->
-                                        // Use the imported SuggestionItem
                                         SuggestionItem(prediction = prediction) {
                                             query = prediction.text.text
                                             viewModel.selectPlace(prediction)
@@ -119,30 +138,49 @@ fun SearchPlacesScreen(
                         }
                         is SearchPlacesUiState.LoadingDetails -> {
                             CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
-                            Text("Loading details for ${state.placeName ?: "place"}...", style = MaterialTheme.typography.bodyMedium)
+                            val placeName = state.placeName ?: stringResource(R.string.search_places_default_place_name) // <<< Default name
+                            Text(
+                                stringResource(R.string.search_places_loading_details, placeName), // <<< Use stringResource with placeholder
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                         is SearchPlacesUiState.DetailsLoaded -> {
                             CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
-                            Text("Getting rating/status...", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.search_places_getting_rating_status), // <<< Use stringResource
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                         is SearchPlacesUiState.AddingPlace -> {
                             CircularProgressIndicator(modifier = Modifier.padding(vertical = 20.dp))
-                            Text("Adding ${state.placeDetails.displayName.text}...", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.search_places_adding_place, state.placeDetails.displayName.text), // <<< Use stringResource with placeholder
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                         is SearchPlacesUiState.PlaceAdded -> {
-                            // Usually handled by LaunchedEffect navigation
-                            Text("Place Added!", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                stringResource(R.string.search_places_added_success), // <<< Use stringResource
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary // Use theme color for success
+                            )
                         }
                         is SearchPlacesUiState.Error -> {
-                            // Display area now handled primarily by Snackbar
-                            // Optionally show a persistent message if needed, but Snackbar is often better for errors.
-                            // Text("An error occurred. See message below.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                            // Error is now primarily shown in the Snackbar
+                            // You could add a less prominent text here if desired,
+                            // but avoid duplicating the full error message.
+                            Text(
+                                stringResource(R.string.search_places_error_occurred), // Generic indicator
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     } // End when(state)
 
                     // --- Skip Button Area ---
                     // Only show skip button if suggestions aren't filling space and not in critical states/overlay
-                    if (uiState !is SearchPlacesUiState.SuggestionsLoaded || (uiState as SearchPlacesUiState.SuggestionsLoaded).suggestions.isEmpty()) {
+                    val showSpacer = uiState !is SearchPlacesUiState.SuggestionsLoaded || (uiState as SearchPlacesUiState.SuggestionsLoaded).suggestions.isEmpty()
+                    if (showSpacer) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
 
@@ -156,7 +194,7 @@ fun SearchPlacesScreen(
                             modifier = Modifier.fillMaxWidth().padding(top=16.dp),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                         ) {
-                            Text("Skip Adding Place")
+                            Text(stringResource(R.string.button_skip_adding_place)) // <<< Use stringResource
                         }
                     }
 
@@ -176,7 +214,6 @@ fun SearchPlacesScreen(
                     ?: (uiState as? SearchPlacesUiState.AddingPlace)?.placeDetails
 
                 if (details != null) {
-                    // Use the imported SearchPlacesOverlay
                     SearchPlacesOverlay(
                         step = overlayStep,
                         placeDetails = details,
@@ -196,7 +233,3 @@ fun SearchPlacesScreen(
         } // End Outer Box
     } // End SesameAppTheme
 } // End SearchPlacesScreen
-
-// --- Remove Helper Composables (SuggestionItem, SearchPlacesOverlay) from this file ---
-// @Composable fun SuggestionItem(...) { ... } // REMOVE
-// @Composable fun SearchPlacesOverlay(...) { ... } // REMOVE

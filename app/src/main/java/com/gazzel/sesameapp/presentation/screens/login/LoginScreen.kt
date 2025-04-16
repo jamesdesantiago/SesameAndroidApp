@@ -93,7 +93,6 @@ fun LoginScreen(
                         tint = Color.Unspecified
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    // Text("Sign in with Google") // Before
                     Text(stringResource(R.string.login_button_google)) // After
                 }
             }

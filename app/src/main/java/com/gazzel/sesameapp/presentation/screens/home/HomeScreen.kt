@@ -227,8 +227,6 @@ fun HomeScreen(
                             modifier = Modifier.padding(16.dp),
                             textAlign = TextAlign.Center
                         )
-                        // Optionally add a retry button if appropriate for home screen errors
-                        // Button(onClick = { viewModel.refreshData() }) { Text("Retry") }
                     }
                 }
             }
@@ -240,7 +238,7 @@ fun HomeScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Initializing...") // Or some placeholder
+                    Text(stringResource(R.string.state_initializing))
                 }
             }
         }

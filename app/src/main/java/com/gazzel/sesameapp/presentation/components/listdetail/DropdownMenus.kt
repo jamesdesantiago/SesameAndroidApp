@@ -9,10 +9,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // <<< Import
+import com.gazzel.sesameapp.R // <<< Import
 
 @Composable
 fun ListDropdownMenu(
-    isPrivate: Boolean,
+    isPrivate: Boolean, // Note: Your VM logic uses !isPublic, so this should align
     expanded: Boolean,
     onDismiss: () -> Unit,
     onPrivacyToggle: () -> Unit,
@@ -24,13 +26,15 @@ fun ListDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss,
         modifier = Modifier
-            .fillMaxWidth()
+            // Consider removing fillMaxWidth if it makes the menu too wide on large screens
+            // .fillMaxWidth()
             .wrapContentHeight()
     ) {
         DropdownMenuItem(
             text = {
                 Text(
-                    text = if (isPrivate) "Make public" else "Make private",
+                    // Use stringResource conditionally based on isPrivate
+                    text = stringResource(id = if (isPrivate) R.string.menu_action_make_public else R.string.menu_action_make_private),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -40,21 +44,21 @@ fun ListDropdownMenu(
             }
         )
         DropdownMenuItem(
-            text = { Text("Edit list name", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_edit_list_name), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 onEditListName()
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Merge list", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_merge_list), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 onMergeList()
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Delete list", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_delete_list), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 onDeleteList()
                 onDismiss()
@@ -65,61 +69,61 @@ fun ListDropdownMenu(
 
 @Composable
 fun PlaceDropdownMenu(
-    placeId: String,
+    placeId: String, // Keep placeId if needed for logging or specific actions
     expanded: Boolean,
     onDismiss: () -> Unit,
-    onShare: (String) -> Unit,
+    onShare: (String) -> Unit, // Still pass placeId if Share logic needs it
     onTags: () -> Unit,
-    onNotes: (String) -> Unit,
+    onNotes: (String) -> Unit, // Still pass placeId if Notes logic needs it
     onAddToList: () -> Unit,
-    onDeleteItem: () -> Unit
+    onDeleteItem: () -> Unit // Action doesn't strictly need placeId here if called from correct context
 ) {
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = {
-            Log.d("ListDetail", "Dismissing place menu")
+            Log.d("ListDetail", "Dismissing place menu") // Keep log if helpful
             onDismiss()
         },
         modifier = Modifier
-            .fillMaxWidth()
+            // .fillMaxWidth() // Consider removing
             .wrapContentHeight()
     ) {
         DropdownMenuItem(
-            text = { Text("Share", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_share), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 Log.d("ListDetail", "Share selected for placeId=$placeId")
-                onShare(placeId)
+                onShare(placeId) // Pass ID if needed by share overlay/logic
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Tags", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_tags), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 onTags()
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Notes", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_notes), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 Log.d("ListDetail", "Opening note viewer for placeId=$placeId")
-                onNotes(placeId)
+                onNotes(placeId) // Pass ID if needed by notes overlay/logic
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Add to different list", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_add_to_list), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
                 onAddToList()
                 onDismiss()
             }
         )
         DropdownMenuItem(
-            text = { Text("Delete item", style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(stringResource(id = R.string.menu_action_delete_item), style = MaterialTheme.typography.bodyMedium) }, // <<< Use stringResource
             onClick = {
-                onDeleteItem()
+                onDeleteItem() // Call the delete action
                 onDismiss()
             }
         )
     }
-} 
+}

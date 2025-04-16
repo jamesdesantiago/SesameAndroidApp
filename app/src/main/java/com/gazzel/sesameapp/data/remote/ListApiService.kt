@@ -55,14 +55,14 @@ interface ListApiService {
     @GET("lists/{listId}")
     suspend fun getListDetail(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String // Use String if API path expects String ID
+        @Path("listId") listId: Int
     ): Response<ListDetailDto> // <<< Correct: Returns metadata DTO only
 
     // PATCH /lists/{listId} -> Returns updated metadata
     @PATCH("lists/{listId}")
     suspend fun updateList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int, // Use String if API path expects String ID
         @Body update: ListUpdateDto
     ): Response<ListDetailDto> // <<< Return ListDetailDto (metadata only)
 
@@ -70,7 +70,7 @@ interface ListApiService {
     @DELETE("lists/{listId}")
     suspend fun deleteList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String // Use String if API path expects String ID
+        @Path("listId") listId: Int
     ): Response<Unit>
 
     // --- List Discovery/Query Operations ---
@@ -102,7 +102,7 @@ interface ListApiService {
     @GET("lists/{listId}/places") // <<< NEW METHOD
     suspend fun getPlacesInList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Query("page") page: Int,
         @Query("pageSize") pageSize: Int
     ): Response<PaginatedPlaceResponseDto> // <<< Use new paginated place DTO
@@ -111,7 +111,7 @@ interface ListApiService {
     @POST("lists/{listId}/places")
     suspend fun addPlace(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Body place: PlaceCreateDto
     ): Response<PlaceDto> // <<< Changed to PlaceDto to match backend return
 
@@ -119,7 +119,7 @@ interface ListApiService {
     @PATCH("lists/{listId}/places/{placeId}")
     suspend fun updatePlace(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Path("placeId") placeId: String, // Use String if API path expects String ID (DB ID is Int though?) -> Clarify API path param type
         @Body update: PlaceUpdateDto
     ): Response<PlaceDto> // <<< Changed to PlaceDto to match backend return
@@ -128,7 +128,7 @@ interface ListApiService {
     @DELETE("lists/{listId}/places/{placeId}") // <<< NEW METHOD
     suspend fun removePlaceFromList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Path("placeId") placeId: String // Use String if API path expects String ID
     ): Response<Unit>
 
@@ -137,13 +137,13 @@ interface ListApiService {
     @POST("lists/{listId}/follow")
     suspend fun followList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String // Use String if API path expects String ID
+        @Path("listId") listId: Int
     ): Response<Unit>
 
     @DELETE("lists/{listId}/follow")
     suspend fun unfollowList(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String // Use String if API path expects String ID
+        @Path("listId") listId: Int
     ): Response<Unit>
 
     // --- List Collaborator Operations ---
@@ -151,14 +151,14 @@ interface ListApiService {
     @POST("lists/{listId}/collaborators")
     suspend fun addCollaborator(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Body collaborator: CollaboratorAddDto
     ): Response<Unit> // Or maybe return updated ListDetailDto? Check backend.
 
     @POST("lists/{listId}/collaborators/batch")
     suspend fun addCollaboratorsBatch(
         @Header("Authorization") authorization: String,
-        @Path("listId") listId: String, // Use String if API path expects String ID
+        @Path("listId") listId: Int,
         @Body collaborators: List<CollaboratorAddDto>
     ): Response<Unit> // Or maybe return updated ListDetailDto? Check backend.
 

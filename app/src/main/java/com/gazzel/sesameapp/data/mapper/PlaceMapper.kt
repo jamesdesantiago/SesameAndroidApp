@@ -35,7 +35,7 @@ private fun Date?.formatIsoDate(): String? {
 fun PlaceDto.toDomainPlace(): Place { // Renamed for clarity
     // This mapping assumes PlaceDto contains fields for the detailed Place model
     return Place(
-        id = this.id,
+        id = this.id.toString(),
         name = this.name,
         description = this.description,
         address = this.address,

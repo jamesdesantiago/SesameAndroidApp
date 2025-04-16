@@ -7,7 +7,7 @@ import com.google.gson.annotations.SerializedName
 // Adjust field names and nullability based on your ACTUAL API responses
 data class UserDto(
     @SerializedName("id") // Match JSON key from API
-    val id: String,
+    val id: Int,
 
     @SerializedName("email") // Match JSON key from API
     val email: String,

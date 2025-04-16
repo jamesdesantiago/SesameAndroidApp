@@ -80,7 +80,6 @@ fun LoginScreen(
             // TODO: Consider adding an App Icon/Logo here
 
             Text(
-                // text = "Welcome to Sesame", // Before
                 text = stringResource(R.string.login_welcome_title), // After
                 style = MaterialTheme.typography.headlineMedium, // Adjusted style
                 textAlign = TextAlign.Center
@@ -89,8 +88,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                // text = "Your personal list companion", // Before
-                text = stringResource(R.string.login_welcome_subtitle), // After
+                text = stringResource(R.string.login_welcome_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

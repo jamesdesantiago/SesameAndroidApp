@@ -100,7 +100,7 @@ fun UsernameSetupScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = username.isNotBlank() && username.length >= 3 // Basic validation
                 ) {
-                    Text("Retry") // Change text maybe?
+                    Text(stringResource(R.string.button_retry)) // Change text maybe?
                 }
 
             }

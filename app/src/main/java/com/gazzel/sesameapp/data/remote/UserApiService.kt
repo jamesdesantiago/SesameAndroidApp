@@ -48,7 +48,7 @@ interface UserApiService {
 
     @GET("users/{userId}")
     suspend fun getUserProfileById(
-        @Path("userId") userId: String,
+        @Path("userId") userId: Int,
         @Header("Authorization") authorization: String
     ): Response<UserDto> // <<< CHANGED to UserDto
 
@@ -82,13 +82,13 @@ interface UserApiService {
 
     @POST("users/{userId}/follow")
     suspend fun followUser(
-        @Path("userId") userId: String,
+        @Path("userId") userId: Int,
         @Header("Authorization") token: String
     ): Response<Unit>
 
     @DELETE("users/{userId}/follow")
     suspend fun unfollowUser(
-        @Path("userId") userId: String,
+        @Path("userId") userId: Int,
         @Header("Authorization") token: String
     ): Response<Unit>
 
@@ -108,7 +108,7 @@ interface UserApiService {
 
     @POST("users/{userId}/friend-request")
     suspend fun sendFriendRequest(
-        @Path("userId") userId: String,
+        @Path("userId") userId: Int,
         @Header("Authorization") token: String
     ): Response<Unit>
 
