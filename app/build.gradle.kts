@@ -157,4 +157,10 @@ dependencies {
     testImplementation(libs.mockito.kotlin) // Mockito for Kotlin
     testImplementation(libs.kotlinx.coroutines.test) // Coroutine testing utilities
     testImplementation(libs.turbine) // Flow testing library
+
+    // Crashlytics
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2")) // Use latest BoM
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx") // Often included with BoM, but good to be explicit
+    implementation("com.google.firebase:firebase-perf-ktx")      // Add performance monitoring
 }

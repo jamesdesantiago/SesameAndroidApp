@@ -3,9 +3,8 @@ package com.gazzel.sesameapp.data.paging
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
-import com.gazzel.sesameapp.data.mapper.toDomainFriend // Ensure correct import
-// Import the NEW UserDto
-import com.gazzel.sesameapp.data.remote.dto.UserDto // <<< CHANGE
+import com.gazzel.sesameapp.data.mapper.toDomainFriend // Correct import
+import com.gazzel.sesameapp.data.remote.dto.UserDto // Use UserDto (which now has isFollowing)
 import com.gazzel.sesameapp.data.remote.UserApiService
 import com.gazzel.sesameapp.domain.auth.TokenProvider
 import com.gazzel.sesameapp.domain.model.Friend // Domain model
@@ -16,9 +15,8 @@ import android.util.Log
 class UserSearchPagingSource(
     private val userApiService: UserApiService,
     private val tokenProvider: TokenProvider,
-    private val query: String,
-    // Pre-fetched set of IDs the current user is following
-    private val currentlyFollowingIds: Set<String>
+    private val query: String
+    // --- REMOVED currentlyFollowingIds parameter ---
 ) : PagingSource<Int, Friend>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Friend> {
@@ -40,13 +38,11 @@ class UserSearchPagingSource(
         }
 
         return try {
-            // ASSUMPTION: searchUsersByEmail takes page/pageSize and returns PaginatedUserResponseDto
-            // Update UserApiService if this assumption is incorrect
             val response = userApiService.searchUsersByEmail(
                 email = query,
                 token = authorizationHeader,
-                page = page, // <<< Assuming API supports this
-                pageSize = pageSize // <<< Assuming API supports this
+                page = page,
+                pageSize = pageSize
             )
 
             if (response.isSuccessful) {
@@ -56,14 +52,12 @@ class UserSearchPagingSource(
                     return LoadResult.Page(emptyList(), if (page == 1) null else page - 1, null)
                 }
 
-                // paginatedResponse.items is List<UserDto>
                 val usersDtoList: List<UserDto> = paginatedResponse.items
 
-                // --- MAP List<UserDto> to List<Friend> ---
+                // --- MAP using isFollowing from DTO via updated mapper ---
                 val friendsDomain = usersDtoList.map { userDto ->
-                    // Determine isFollowing status using the pre-fetched set
-                    val isFollowing = currentlyFollowingIds.contains(userDto.id) // Use ID from DTO
-                    userDto.toDomainFriend(isFollowing = isFollowing)
+                    // The mapper will now automatically use the isFollowing field from userDto
+                    userDto.toDomainFriend()
                 }
                 Log.d("UserSearchPagingSource", "Page $page loaded ${friendsDomain.size} search results for '$query'. Total pages: ${paginatedResponse.totalPages}")
 

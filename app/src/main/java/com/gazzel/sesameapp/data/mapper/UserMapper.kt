@@ -3,25 +3,27 @@ package com.gazzel.sesameapp.data.mapper
 
 // Import all three User representations
 import com.gazzel.sesameapp.data.local.entity.UserEntity
-import com.gazzel.sesameapp.data.remote.dto.UserDto
+import com.gazzel.sesameapp.data.remote.dto.UserDto // Use the updated UserDto
 import com.gazzel.sesameapp.domain.model.User as DomainUser // Alias domain model
 import com.gazzel.sesameapp.domain.model.Friend as DomainFriend
 
-// Maps Network DTO -> Domain Model
+// Maps Network DTO -> Domain Model (User)
 fun UserDto.toDomain(): DomainUser {
     return DomainUser(
-        id = this.id,
+        // Ensure ID mapping is correct (Int from DTO -> String for Domain?)
+        id = this.id.toString(), // Assuming DomainUser ID is String
         email = this.email,
         username = this.username,
         displayName = this.displayName,
         profilePicture = this.profilePicture
+        // isFollowing field is NOT part of the core Domain User model
     )
 }
 
-// Maps Database Entity -> Domain Model
+// Maps Database Entity -> Domain Model (User)
 fun UserEntity.toDomain(): DomainUser {
     return DomainUser(
-        id = this.id,
+        id = this.id, // Assuming UserEntity ID is String
         email = this.email,
         username = this.username,
         displayName = this.displayName,
@@ -29,10 +31,10 @@ fun UserEntity.toDomain(): DomainUser {
     )
 }
 
-// Maps Domain Model -> Database Entity
+// Maps Domain Model (User) -> Database Entity
 fun DomainUser.toEntity(): UserEntity {
     return UserEntity(
-        id = this.id,
+        id = this.id, // Assuming UserEntity ID is String
         email = this.email,
         username = this.username,
         displayName = this.displayName,
@@ -42,16 +44,18 @@ fun DomainUser.toEntity(): UserEntity {
 
 /**
  * Maps the Network User DTO to the Domain layer Friend model.
- * Requires the 'isFollowing' status to be passed in.
+ * Now uses the isFollowing field directly from the DTO.
  */
-fun UserDto.toDomainFriend(isFollowing: Boolean): DomainFriend { // <<< CHANGED input type
+// --- REMOVED isFollowing parameter from the function signature ---
+fun UserDto.toDomainFriend(): DomainFriend {
     return DomainFriend(
-        id = this.id, // Assuming domain Friend uses String ID, DTO also uses String
+        id = this.id.toString(), // Assuming domain Friend ID is String
         username = this.username ?: this.email.substringBefore('@'), // Use username or derive from email
         displayName = this.displayName,
         profilePicture = this.profilePicture,
-        // listCount = this.listCount ?: 0, // If UserDto has counts
+        // listCount = this.listCount ?: 0, // Map if available in UserDto
         listCount = 0, // Default if UserDto doesn't include counts
-        isFollowing = isFollowing
+        // --- Get isFollowing directly from DTO ---
+        isFollowing = this.isFollowing ?: false // Use DTO field, default to false if null/missing
     )
 }

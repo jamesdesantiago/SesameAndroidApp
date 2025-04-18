@@ -21,6 +21,9 @@ data class UserDto(
     @SerializedName("profile_picture") // Match JSON key from API (e.g., 'profile_picture')
     val profilePicture: String?,
 
+    @SerializedName("is_following") // <<< Match JSON key from backend
+    val isFollowing: Boolean? = null
+
     // Add other fields returned by the API if needed by the app,
     // like counts (if UserApiService endpoints return them)
     // @SerializedName("list_count")
