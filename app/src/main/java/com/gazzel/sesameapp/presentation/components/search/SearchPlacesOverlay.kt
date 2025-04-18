@@ -10,8 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource // <<< Import stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gazzel.sesameapp.R // <<< Import your R class
 import com.gazzel.sesameapp.data.remote.PlaceDetailsResponse // Import DTO
 import com.gazzel.sesameapp.presentation.screens.search.OverlayStep // Import OverlayStep enum
 
@@ -47,48 +49,91 @@ fun SearchPlacesOverlay(
             ) {
                 // Close button for the overlay
                 IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+                    Icon(
+                        Icons.Default.Close,
+                        // Use stringResource for contentDescription
+                        contentDescription = stringResource(R.string.cd_close_overlay)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp)) // Space after close button
 
                 when (step) {
                     OverlayStep.ShowPlaceDetails -> {
+                        // Place Name (Keep as is - dynamic)
                         Text(placeDetails.displayName.text, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(4.dp))
+                        // Place Address (Keep as is - dynamic)
                         Text(placeDetails.formattedAddress, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                         placeDetails.rating?.let { googleRating ->
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Google Rating: ${String.format("%.1f", googleRating)}", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                // Use stringResource for Google Rating
+                                text = stringResource(R.string.overlay_google_rating, googleRating),
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Button(onClick = onProceedToVisitStatus) {
-                            Text("Add Rating/Status (Optional)")
+                            // Use stringResource for Button text
+                            Text(stringResource(R.string.overlay_button_add_rating_status))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
                         TextButton(onClick = onAddDirectly) {
-                            Text("Add Place Directly")
+                            // Use stringResource for Button text
+                            Text(stringResource(R.string.overlay_button_add_directly))
                         }
                     }
                     OverlayStep.AskVisitOrNot -> {
-                        Text("Have you been to ${placeDetails.displayName.text}?", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                        Text(
+                            // Use stringResource for Title with placeholder
+                            text = stringResource(R.string.overlay_title_ask_visit, placeDetails.displayName.text),
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()){
-                            Button(onClick = { onVisitStatusSelected("VISITED") }, modifier = Modifier.weight(1f)) { Text("Yes, Visited") }
-                            Button(onClick = { onVisitStatusSelected("WANT_TO_VISIT") }, modifier = Modifier.weight(1f)) { Text("Want to Visit") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = { onVisitStatusSelected("VISITED") }, modifier = Modifier.weight(1f)) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_visited))
+                            }
+                            Button(onClick = { onVisitStatusSelected("WANT_TO_VISIT") }, modifier = Modifier.weight(1f)) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_want_to_visit))
+                            }
                         }
-                        TextButton(onClick = { onVisitStatusSelected(null) }) { Text("Skip this step") }
+                        TextButton(onClick = { onVisitStatusSelected(null) }) {
+                            // Use stringResource for Button text
+                            Text(stringResource(R.string.overlay_button_skip_step))
+                        }
                     }
                     OverlayStep.AskRating -> {
-                        Text("How would you rate ${placeDetails.displayName.text}?", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                        Text(
+                            // Use stringResource for Title with placeholder
+                            text = stringResource(R.string.overlay_title_ask_rating, placeDetails.displayName.text),
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) { // Ensure buttons fill width
-                            Button(onClick = { onRatingSelected("MUST_VISIT") }, modifier = Modifier.fillMaxWidth()) { Text("⭐ Must Visit!") }
-                            Button(onClick = { onRatingSelected("WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) { Text("👍 Worth Visiting") }
-                            Button(onClick = { onRatingSelected("NOT_WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) { Text("👎 Not Worth Visiting") }
-                            TextButton(onClick = { onRatingSelected(null) }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Skip Rating") }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = { onRatingSelected("MUST_VISIT") }, modifier = Modifier.fillMaxWidth()) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_rating_must_visit))
+                            }
+                            Button(onClick = { onRatingSelected("WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_rating_worth_visiting))
+                            }
+                            Button(onClick = { onRatingSelected("NOT_WORTH_VISITING") }, modifier = Modifier.fillMaxWidth()) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_rating_not_worth_visiting))
+                            }
+                            TextButton(onClick = { onRatingSelected(null) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                                // Use stringResource for Button text
+                                Text(stringResource(R.string.overlay_button_skip_rating))
+                            }
                         }
                     }
                     OverlayStep.Hidden -> {} // Should not be visible if Hidden

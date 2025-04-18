@@ -77,6 +77,8 @@
     <string name="friends_empty_search_title">No friends found</string>
     <string name="friends_empty_search_subtitle">Try searching for a different email address.</string>
     <string name="cd_friend_profile_picture">Friend profile picture</string>
+    <string name="tab_following">Following</string>
+    <string name="tab_followers">Followers</string>
 
     <!-- Help Screen -->
     <string name="help_screen_title">Help & Support</string> <!-- Use & for ampersand -->
@@ -159,6 +161,9 @@
     <string name="home_error_location_unavailable">Unable to get current location. Is location enabled?</string>
     <string name="home_error_loading_places">Failed to load places nearby.</string>
     <string name="home_location_permission_rationale">Location permission is needed to show nearby places on the map.</string> <!-- Example Rationale -->
+    <string name="home_search_results_title">Search Results</string>
+    <string name="home_search_no_results">No lists match \'%1$s\'</string>
+    <string name="cd_close_search">Close search</string>
 
     <!-- Search Places Screen -->
     <string name="search_places_title">Add Place to List</string> <!-- Added -->
@@ -250,4 +255,24 @@
     <!-- Tab Labels -->
     <string name="tab_label_list">List</string>
     <string name="tab_label_map">Map</string>
+
+    <!-- List Detail -->
+    <string name="list_detail_no_places_found">No places found</string>
+    <string name="list_detail_search_label">Search in this list…</string>
+
+    <!-- Place Row -->
+    <string name="place_row_status">Status: %1$s</string>
+    <string name="place_row_rating">Rating: %1$s</string>
+    <string name="cd_more_options_place">More options for %1$s</string>
+
+    <!-- List Detail Top Bar -->
+    <string name="cd_add_collaborator">Add collaborator</string>
+    <string name="cd_share_list">Share list</string>
+    <string name="cd_more_options">More options</string>
+
+    <!-- Generic Errors (if not present) -->
+    <string name="error_loading_friends_detail">Error loading friends: %1$s</string>
+    <string name="error_unknown">Unknown error</string>
+    <string name="error_loading_more_friends">Error loading more: %1$s</string>
+
 </resources>

@@ -1,6 +1,7 @@
 // app/src/main/java/com/gazzel/sesameapp/presentation/screens/friends/FriendsScreen.kt
 package com.gazzel.sesameapp.presentation.screens.friends
 
+import android.util.Log // Keep Log import
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -55,7 +56,8 @@ fun FriendsScreen(
                 snackbarHostState.showSnackbar(
                     message = message,
                     duration = SnackbarDuration.Short,
-                    actionLabel = "Dismiss" // Optional dismiss action
+                    // Use stringResource for dismiss action
+                    actionLabel = stringResource(R.string.snackbar_dismiss)
                 )
             }
             viewModel.clearError() // Clear error state after showing
@@ -117,8 +119,8 @@ fun FriendsScreen(
                         selected = selectedTab == tab,
                         onClick = { viewModel.selectTab(tab) },
                         text = {
-                            // Capitalize tab name for display
-                            Text(tab.name.lowercase().replaceFirstChar { it.titlecase() })
+                            // Use stringResource for tab labels
+                            Text(stringResource(id = if (tab == FriendTab.FOLLOWING) R.string.tab_following else R.string.tab_followers))
                             // TODO: Consider adding counts here if available/needed
                         }
                     )
@@ -300,7 +302,8 @@ private fun FriendItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (friend.displayName != friend.username && friend.username.isNotBlank()) {
+                // Show username only if different from display name
+                if (friend.displayName != null && friend.displayName != friend.username && friend.username.isNotBlank()) {
                     Text(
                         text = "@${friend.username}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -372,11 +375,3 @@ private fun EmptyFriendsView(
         )
     }
 }
-
-// Add required string resources to res/values/strings.xml:
-/*
-<string name="error_loading_friends">Failed to load friends</string>
-<string name="error_loading_friends_detail">Error loading friends: %1$s</string>
-<string name="error_loading_more_friends">Error loading more: %1$s</string>
-<string name="error_unknown">Unknown error</string>
-*/

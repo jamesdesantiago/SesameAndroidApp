@@ -12,6 +12,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource // <<< Import stringResource
+import com.gazzel.sesameapp.R // <<< Import your R class
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,6 +26,7 @@ fun ListDetailTopBar(
 ) {
     TopAppBar(
         title = {
+            // List name is dynamic, so it remains a variable
             Text(
                 text = listName,
                 style = MaterialTheme.typography.titleLarge
@@ -33,7 +36,8 @@ fun ListDetailTopBar(
             IconButton(onClick = onBackClick) {
                 Icon(
                     imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "Back"
+                    // Use stringResource for contentDescription
+                    contentDescription = stringResource(R.string.cd_back_button)
                 )
             }
         },
@@ -41,21 +45,24 @@ fun ListDetailTopBar(
             IconButton(onClick = onAddCollaboratorClick) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add collaborator"
+                    // Use stringResource for contentDescription
+                    contentDescription = stringResource(R.string.cd_add_collaborator)
                 )
             }
             IconButton(onClick = onShareListClick) {
                 Icon(
                     imageVector = Icons.Default.Share,
-                    contentDescription = "Share list"
+                    // Use stringResource for contentDescription
+                    contentDescription = stringResource(R.string.cd_share_list)
                 )
             }
             IconButton(onClick = onMoreClick) {
                 Icon(
                     imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "More options"
+                    // Use stringResource for contentDescription
+                    contentDescription = stringResource(R.string.cd_more_options)
                 )
             }
         }
     )
-} 
+}

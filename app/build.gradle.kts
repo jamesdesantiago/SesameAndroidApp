@@ -38,12 +38,12 @@ fun getApiKey(projectRootDir: File, propertyName: String): String {
 android {
     // ... (namespace, compileSdk, defaultConfig, buildTypes, compileOptions, kotlinOptions, buildFeatures, packaging) ...
     namespace = "com.gazzel.sesameapp"
-    compileSdk = 35 // Ensure this matches a valid SDK version you have installed
+    compileSdk = 34 // Ensure this matches a valid SDK version you have installed
 
     defaultConfig {
         applicationId = "com.gazzel.sesameapp"
         minSdk = 24
-        targetSdk = 35 // Match compileSdk or use a recent API level
+        targetSdk = 34 // Match compileSdk or use a recent API level
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -15,7 +15,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource // <<< Import stringResource
 import androidx.compose.ui.unit.dp
+import com.gazzel.sesameapp.R // <<< Import your R class
 import com.gazzel.sesameapp.domain.model.PlaceItem
 
 @Composable
@@ -33,26 +35,33 @@ fun PlaceRow(
         Column(
             modifier = Modifier.weight(1f)
         ) {
+            // Place Name (Keep as is)
             Text(
                 text = place.name,
                 style = MaterialTheme.typography.bodyLarge
             )
+            // Place Address (Keep as is)
             Text(
                 text = place.address,
                 style = MaterialTheme.typography.bodyMedium
             )
+            // Visit Status (Use string resource)
             if (place.visitStatus != null) {
                 Text(
-                    text = "Status: ${place.visitStatus}",
+                    // Use stringResource with placeholder
+                    text = stringResource(R.string.place_row_status, place.visitStatus),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            // Rating (Use string resource)
             if (place.rating != null) {
                 Text(
-                    text = "${place.rating}",
+                    // Use stringResource with placeholder, handle null/empty rating if needed
+                    text = stringResource(R.string.place_row_rating, place.rating),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+            // Notes (Keep as is)
             if (place.notes != null) {
                 Text(
                     text = place.notes,
@@ -67,8 +76,9 @@ fun PlaceRow(
         }) {
             Icon(
                 imageVector = Icons.Filled.MoreVert,
-                contentDescription = "More options for place"
+                // Use stringResource for contentDescription
+                contentDescription = stringResource(R.string.cd_more_options_place, place.name) // Pass place name
             )
         }
     }
-} 
+}

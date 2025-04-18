@@ -26,6 +26,8 @@ fun SuggestionItem(
         shape = MaterialTheme.shapes.medium // Optional: Use theme shapes
     ) {
         Text(
+            // This text comes directly from the API prediction data,
+            // so it's inherently dynamic and not a hardcoded UI string.
             text = prediction.text.text,
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyLarge
