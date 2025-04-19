@@ -2,17 +2,19 @@
 
 import pytest
 import asyncpg
-from unittest.mock import AsyncMock, MagicMock, patch # For mocking
-from typing import List, Dict, Any # Added List/Dict/Any
-import datetime # For notification timestamps
+from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Dict, Any, List, Optional, Tuple # Added Tuple
+import datetime
 
-# Import the module and functions/exceptions to test
+# Import module and functions/exceptions
 from app.crud import crud_user
 from app.crud.crud_user import UserNotFoundError, UsernameAlreadyExistsError, DatabaseInteractionError
 from app.schemas.token import FirebaseTokenData
-from app.schemas import user as user_schemas # For PrivacySettingsUpdate etc.
+from app.schemas import user as user_schemas
 
-# Mark all tests in this file as async
+# Import the helper from utils
+from tests.utils import create_mock_record # <<< IMPORT HELPER
+
 pytestmark = pytest.mark.asyncio
 
 # Helper to create mock records easily
@@ -336,3 +338,11 @@ async def test_delete_user_account_not_found():
     result = await crud_user.delete_user_account(mock_conn, 999)
     assert result is False
     mock_conn.execute.assert_awaited_once()
+
+async def test_get_user_by_id_found():
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
+    mock_record = create_mock_record({"id": 1, "email": "test@test.com", "username": "tester"}) # Use imported helper
+    mock_conn.fetchrow.return_value = mock_record
+    user = await crud_user.get_user_by_id(mock_conn, 1)
+    assert user is not None and user['id'] == 1
+    mock_conn.fetchrow.assert_awaited_once()

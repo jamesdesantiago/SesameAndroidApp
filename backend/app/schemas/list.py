@@ -1,50 +1,68 @@
-# backend/app/schemas/place.py
-from pydantic import BaseModel, Field, validator
+# backend/app/schemas/list.py
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
+from datetime import datetime # Keep if needed for timestamps in detailed models
 
-# --- Place Schemas ---
+# Import PlaceItem if needed within list responses (currently avoided in detail responses)
+# from .place import PlaceItem # Not currently needed based on API design
 
-# Base schema with common place fields
-class PlaceBase(BaseModel):
-    name: str = Field(..., max_length=200, description="Name of the place")
-    address: str = Field(..., max_length=300, description="Formatted address of the place")
-    latitude: float = Field(..., ge=-90, le=90, description="Latitude coordinate")
-    longitude: float = Field(..., ge=-180, le=180, description="Longitude coordinate")
-    rating: Optional[str] = Field(None, description="User-defined rating (e.g., MUST_VISIT, WORTH_VISITING)") # Or use Literal/Enum
-    notes: Optional[str] = Field(None, max_length=1000, description="User's notes about the place")
-    visitStatus: Optional[str] = Field(None, description="User's visit status (e.g., VISITED, WANT_TO_VISIT)") # Or use Literal/Enum
+# --- List Schemas ---
 
-    # Example validator if needed for visitStatus/rating
-    # @validator('visitStatus')
-    # def check_visit_status(cls, v):
-    #     if v is not None and v not in ["VISITED", "WANT_TO_VISIT"]:
-    #         raise ValueError('visitStatus must be one of: VISITED, WANT_TO_VISIT')
-    #     return v
+# Base schema with common fields
+class ListBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="The name of the list")
+    description: Optional[str] = Field(None, max_length=500, description="An optional description for the list")
+    isPrivate: bool = Field(False, description="Whether the list is private (True) or public (False)")
 
-# Schema representing a place item as returned by the API (includes DB ID)
-# Used in GET /lists/{id}/places response and POST /lists/{id}/places response
-class PlaceItem(PlaceBase):
-    id: int = Field(..., description="Unique database identifier for the place item in the list")
+# Schema for creating a new list (request body for POST /lists)
+class ListCreate(ListBase):
+    # Inherits fields from ListBase
+    # Add collaborators if they can be set on creation
+    # collaborators: List[EmailStr] = []
+    pass # No extra fields needed based on current API
+
+# Schema for the response when viewing items in a paginated list (e.g., GET /lists, discovery endpoints)
+class ListViewResponse(BaseModel):
+    id: int = Field(..., description="Unique database identifier for the list")
+    name: str = Field(..., description="The name of the list")
+    description: Optional[str] = Field(None, description="The list description")
+    isPrivate: bool = Field(..., description="List privacy status")
+    place_count: int = Field(0, description="Number of places currently in the list")
 
     class Config:
+        # Allows mapping directly from db records if field names match or using aliases
+        # Pydantic V1:
         orm_mode = True
-        # model_config = {"from_attributes": True} # For Pydantic V2+
+        # Pydantic V2:
+        # model_config = {"from_attributes": True}
 
-# Schema for creating a new place within a list (request body for POST /lists/{id}/places)
-class PlaceCreate(PlaceBase):
-    placeId: str = Field(..., description="External identifier for the place (e.g., Google Place ID)")
+# Schema for the response when getting detailed metadata for ONE list (e.g., GET /lists/{id})
+class ListDetailResponse(BaseModel):
+    id: int = Field(..., description="Unique database identifier for the list")
+    name: str = Field(..., description="The name of the list")
+    description: Optional[str] = Field(None, description="The list description")
+    isPrivate: bool = Field(..., description="List privacy status")
+    collaborators: List[EmailStr] = Field([], description="List of collaborator email addresses") # Assuming emails
 
-# Schema for updating an existing place within a list (request body for PATCH /lists/{id}/places/{place_id})
-class PlaceUpdate(BaseModel):
-    notes: Optional[str] = Field(None, max_length=1000, description="Updated notes for the place")
-    # Add other potentially updatable fields here if the API supports them
-    # visitStatus: Optional[str] = None
-    # rating: Optional[str] = None
+    class Config:
+        # Pydantic V1:
+        orm_mode = True
+        # Pydantic V2:
+        # model_config = {"from_attributes": True}
 
-# Schema for the paginated response wrapper for places (e.g., GET /lists/{id}/places)
-class PaginatedPlaceResponse(BaseModel):
-    items: List[PlaceItem] = Field(..., description="The list of place items on the current page")
+# Schema for updating an existing list (request body for PATCH /lists/{id})
+class ListUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the list")
+    isPrivate: Optional[bool] = Field(None, description="New privacy status for the list")
+
+# Schema for adding a collaborator (request body for POST /lists/{id}/collaborators)
+class CollaboratorAdd(BaseModel):
+    email: EmailStr = Field(..., description="Email address of the collaborator to add")
+
+# Schema for the paginated response wrapper for lists (e.g., GET /lists, discovery endpoints)
+class PaginatedListResponse(BaseModel):
+    items: List[ListViewResponse] = Field(..., description="The list of list items on the current page")
     page: int = Field(..., ge=1, description="The current page number")
     page_size: int = Field(..., ge=1, description="Number of items per page")
-    total_items: int = Field(..., ge=0, description="Total number of places matching the query")
+    total_items: int = Field(..., ge=0, description="Total number of lists matching the query")
     total_pages: int = Field(..., ge=0, description="Total number of pages available")

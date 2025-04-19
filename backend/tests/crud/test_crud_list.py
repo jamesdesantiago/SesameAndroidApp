@@ -4,14 +4,16 @@ import pytest
 import asyncpg
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any, List, Optional, Tuple
-import math # For pagination checks
 
 # Import module and functions/exceptions
 from app.crud import crud_list
 from app.crud.crud_list import (ListNotFoundError, ListAccessDeniedError,
                                 CollaboratorNotFoundError, CollaboratorAlreadyExistsError,
-                                DatabaseInteractionError) # Assuming DatabaseInteractionError is defined here or imported
+                                DatabaseInteractionError) # Import specific errors
 from app.schemas import list as list_schemas
+
+# Import the helper from utils
+from tests.utils import create_mock_record # <<< IMPORT HELPER
 
 pytestmark = pytest.mark.asyncio
 
@@ -363,3 +365,19 @@ async def test_get_list_by_id_not_found():
     mock_conn.fetchrow.return_value = None
     record = await crud_list.get_list_by_id(mock_conn, 999)
     assert record is None
+
+async def test_create_list_success():
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
+    owner_id = 1
+    list_in = list_schemas.ListCreate(name="Test List", description="Desc", isPrivate=False)
+    expected_id = 101
+    mock_conn.fetchrow.return_value = create_mock_record({ # Use helper
+        "id": expected_id, "name": list_in.name, "description": list_in.description, "is_private": list_in.isPrivate
+    })
+
+    created_record = await crud_list.create_list(mock_conn, list_in, owner_id)
+
+    assert created_record is not None
+    assert created_record['id'] == expected_id
+    # ... other assertions ...
+    mock_conn.fetchrow.assert_awaited_once()

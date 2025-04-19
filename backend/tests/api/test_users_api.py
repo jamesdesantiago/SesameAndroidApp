@@ -17,6 +17,8 @@ from app.schemas.token import FirebaseTokenData # For mocking
 from app.crud import crud_user # Import crud_user to use check_user_exists
 from unittest.mock import patch, MagicMock # For mocking
 
+from tests.utils import create_test_user, create_follow, create_notification
+
 # Mark all tests in this file as async and needing the DB event loop
 pytestmark = [pytest.mark.asyncio]
 
@@ -501,3 +503,12 @@ async def test_get_notifications_unauthenticated(client: AsyncClient):
     """Test GET /notifications - Fails without authentication."""
     response = await client.get(f"{API_V1}/notifications")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+async def test_get_following_pagination(client: AsyncClient, test_user1: Dict[str, Any], db_conn: asyncpg.Connection, mock_auth):
+     # ... Arrange ...
+     for i in range(5):
+         # Use imported helper
+         user = await create_test_user(db_conn, f"following_tgt_{i}")
+         followed_users.append(user)
+         # Use imported helper
+         await create_follow(db_conn, follower_id=follower_id, followed_id=user["id"])

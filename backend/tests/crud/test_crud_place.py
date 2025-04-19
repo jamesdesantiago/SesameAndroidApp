@@ -3,12 +3,15 @@
 import pytest
 import asyncpg
 from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 # Import module and functions/exceptions
 from app.crud import crud_place
-from app.crud.crud_place import PlaceNotFoundError, PlaceAlreadyExistsError, InvalidPlaceDataError, DatabaseInteractionError # Import custom exceptions
+from app.crud.crud_place import PlaceNotFoundError, PlaceAlreadyExistsError, InvalidPlaceDataError, DatabaseInteractionError
 from app.schemas import place as place_schemas
+
+# Import the helper from utils
+from tests.utils import create_mock_record # <<< IMPORT HELPER
 
 pytestmark = pytest.mark.asyncio
 
@@ -147,3 +150,21 @@ async def test_delete_place_from_list_not_found():
     deleted = await crud_place.delete_place_from_list(mock_conn, 999, 1)
     assert deleted is False
     mock_conn.execute.assert_awaited_once()
+
+async def test_add_place_to_list_success():
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
+    list_id = 1
+    place_in = place_schemas.PlaceCreate(
+        placeId="google123", name="Test Cafe", address="123 Main", latitude=10.0, longitude=20.0
+    )
+    expected_db_id = 50
+    mock_conn.fetchrow.return_value = create_mock_record({ # Use helper
+        "id": expected_db_id, "name": place_in.name, "address": place_in.address
+    })
+
+    result = await crud_place.add_place_to_list(mock_conn, list_id, place_in)
+
+    assert result is not None
+    assert result['id'] == expected_db_id
+    # ... other assertions ...
+    mock_conn.fetchrow.assert_awaited_once()
