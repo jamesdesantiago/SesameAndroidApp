@@ -159,10 +159,6 @@ async def test_get_list_detail_success(client: AsyncClient, mock_auth, test_list
     assert data["name"] == test_list1["name"]
     assert data["collaborators"] == [test_user2["email"]] # Check collaborator email
 
-# test_get_list_detail_success_collaborator already covered in lists.py tests
-# test_get_list_detail_forbidden already covered in lists.py tests
-# test_get_list_detail_not_found already covered in lists.py tests
-
 async def test_update_list_success(client: AsyncClient, mock_auth, test_list1: Dict[str, Any], db_conn: asyncpg.Connection):
     """Test PATCH /lists/{list_id} - Success."""
     headers = {"Authorization": f"Bearer fake-token-for-{test_list1['owner_id']}"}
@@ -221,13 +217,9 @@ async def test_delete_list_success(client: AsyncClient, mock_auth, test_list1: D
     # Verify place is gone (if cascade delete is set)
     # assert not await db_conn.fetchval("SELECT EXISTS (SELECT 1 FROM places WHERE list_id = $1)", list_id)
 
-# test_delete_list_forbidden already exists
-
 # =====================================================
 # Test Collaborator Endpoints
 # =====================================================
-# test_add_collaborator_success already exists
-# test_add_collaborator_already_exists already exists
 
 async def test_add_collaborator_non_existent_user(client: AsyncClient, mock_auth, test_list1: Dict[str, Any]):
      """Test POST /{list_id}/collaborators - Adding non-existent user email (CRUD creates user)."""
@@ -298,13 +290,6 @@ async def test_delete_collaborator_not_found(client: AsyncClient, mock_auth, tes
 # =====================================================
 # Test Place within List Endpoints
 # =====================================================
-# test_get_places_in_list_empty already covered
-# test_add_and_get_places_in_list already covered
-# test_add_place_duplicate_external_id already covered
-# test_update_place_notes_success already covered
-# test_update_place_forbidden already covered
-# test_delete_place_success already covered
-# test_delete_place_forbidden already covered
 
 async def test_add_place_list_not_found(client: AsyncClient, mock_auth, test_user1: Dict[str, Any]):
     """Test POST /{list_id}/places - List does not exist."""
@@ -330,3 +315,53 @@ async def test_delete_place_place_not_found(client: AsyncClient, mock_auth, test
     non_existent_place_id = 77766
     response = await client.delete(f"{API_V1_LISTS}/{list_id}/places/{non_existent_place_id}", headers=headers)
     assert response.status_code == status.HTTP_404_NOT_FOUND # Because crud delete returns False
+
+async def test_delete_collaborator_success(client: AsyncClient, mock_auth, test_list1: Dict[str, Any], test_user2: Dict[str, Any], db_conn: asyncpg.Connection):
+    """Test DELETE /{list_id}/collaborators/{user_id} - Success."""
+    owner_id = test_list1["owner_id"]
+    list_id = test_list1["id"]
+    collaborator_id_to_remove = test_user2["id"]
+    # Arrange: Add collaborator first
+    await add_collaborator_direct(db_conn, list_id, collaborator_id_to_remove)
+    assert await db_conn.fetchval("SELECT 1 FROM list_collaborators WHERE list_id = $1 AND user_id = $2", list_id, collaborator_id_to_remove)
+
+    # Act: Owner removes collaborator
+    headers = {"Authorization": f"Bearer fake-token-for-{owner_id}"}
+    response = await client.delete(f"{API_V1_LISTS}/{list_id}/collaborators/{collaborator_id_to_remove}", headers=headers)
+
+    # Assert: Success (No Content)
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    # Verify collaborator removed
+    assert not await db_conn.fetchval("SELECT 1 FROM list_collaborators WHERE list_id = $1 AND user_id = $2", list_id, collaborator_id_to_remove)
+
+async def test_delete_collaborator_forbidden(client: AsyncClient, mock_auth, test_user1: Dict[str, Any], test_user2: Dict[str, Any], db_conn: asyncpg.Connection):
+    """Test DELETE /{list_id}/collaborators/{user_id} - Non-owner cannot remove."""
+    # Arrange: user1 owns list, user2 is collaborator
+    list_data = await create_test_list_direct(db_conn, test_user1["id"], "List for Collab Deletion", False)
+    list_id = list_data["id"]
+    collaborator_id = test_user2["id"]
+    await add_collaborator_direct(db_conn, list_id, collaborator_id)
+
+    # Act: user2 (collaborator) tries to remove themselves (or another user)
+    # Need to mock auth for user2
+    mock_token_user2 = FirebaseTokenData(uid=test_user2["firebase_uid"], email=test_user2["email"])
+    async def override_auth_user2(): return mock_token_user2
+    app.dependency_overrides[deps.get_verified_token_data] = override_auth_user2
+    headers = {"Authorization": f"Bearer fake-token-for-{collaborator_id}"} # Auth as collaborator
+
+    response = await client.delete(f"{API_V1_LISTS}/{list_id}/collaborators/{collaborator_id}", headers=headers)
+
+    app.dependency_overrides.clear() # Clean up mock
+
+    # Assert: Forbidden (because dependency checks for *owner*)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+async def test_delete_collaborator_not_found(client: AsyncClient, mock_auth, test_list1: Dict[str, Any]):
+    """Test DELETE /{list_id}/collaborators/{user_id} - Collaborator not on list."""
+    owner_id = test_list1["owner_id"]
+    list_id = test_list1["id"]
+    non_collaborator_id = 98765 # Assume this user ID doesn't exist or isn't a collaborator
+    headers = {"Authorization": f"Bearer fake-token-for-{owner_id}"}
+
+    response = await client.delete(f"{API_V1_LISTS}/{list_id}/collaborators/{non_collaborator_id}", headers=headers)
+    assert response.status_code == status.HTTP_404_NOT_FOUND # CRUD delete returns False -> endpoint raises 404
