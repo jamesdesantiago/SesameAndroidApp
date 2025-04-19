@@ -1,7 +1,5 @@
-// Create New File: app/src/main/java/com/gazzel/sesameapp/domain/usecase/SearchFriendsPaginatedUseCase.kt
 package com.gazzel.sesameapp.domain.usecase
 
-import androidx.paging.PagingData
 import com.gazzel.sesameapp.domain.model.Friend
 import com.gazzel.sesameapp.domain.repository.FriendRepository
 import kotlinx.coroutines.flow.Flow

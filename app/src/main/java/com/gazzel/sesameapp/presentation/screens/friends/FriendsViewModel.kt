@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import androidx.paging.map // Keep for potential future UI model mapping
 import com.gazzel.sesameapp.domain.model.Friend
 // Import Paginated Use Cases
 import com.gazzel.sesameapp.domain.usecase.GetFollowingPaginatedUseCase
@@ -22,7 +21,6 @@ import com.gazzel.sesameapp.domain.util.onSuccess
 // Hilt and Coroutines
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
