@@ -5,6 +5,7 @@ import asyncpg
 import pytest # For pytest.fail
 from typing import Dict, Any, Optional
 from unittest.mock import MagicMock # For mocking records
+import asyncio # For sleep
 
 # --- Mocking Helpers ---
 
@@ -41,7 +42,7 @@ async def create_test_user_direct(db_conn: asyncpg.Connection, suffix: str, make
             """
             INSERT INTO users (email, firebase_uid, username, display_name, created_at, updated_at)
             VALUES ($1, $2, $3, $4, NOW(), NOW())
-            ON CONFLICT (email) DO NOTHING -- Handle email conflict
+            ON CONFLICT (email) DO NOTHING -- Basic conflict handling for email
             RETURNING id
             """,
             email, fb_uid, username, display_name

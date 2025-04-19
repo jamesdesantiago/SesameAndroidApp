@@ -7,23 +7,13 @@ from typing import Dict, Any, Optional, Tuple
 
 # Import module and functions/exceptions
 from app.crud import crud_place
-from app.crud.crud_place import PlaceNotFoundError, PlaceAlreadyExistsError, InvalidPlaceDataError, DatabaseInteractionError
+from app.crud.crud_place import PlaceNotFoundError, PlaceAlreadyExistsError, InvalidPlaceDataError, DatabaseInteractionError # Make sure DatabaseInteractionError exists/imported
 from app.schemas import place as place_schemas
 
 # Import the helper from utils
-from tests.utils import create_mock_record # <<< IMPORT HELPER
+from tests.utils import create_mock_record
 
 pytestmark = pytest.mark.asyncio
-
-# Helper function (copy from test_crud_list or move to conftest/utils)
-def create_mock_record(data: Dict[str, Any]) -> MagicMock:
-    mock = MagicMock(spec=asyncpg.Record)
-    mock.__getitem__.side_effect = lambda key: data.get(key)
-    mock.get.side_effect = lambda key, default=None: data.get(key, default)
-    for key, value in data.items(): setattr(mock, key, value)
-    mock.items.return_value = data.items(); mock.keys.return_value = data.keys()
-    mock._asdict = lambda: data
-    return mock
 
 # --- Tests for get_places_by_list_id_paginated ---
 async def test_get_places_by_list_id_paginated_success():
@@ -42,9 +32,9 @@ async def test_get_places_by_list_id_paginated_success():
     assert places[0]['id'] == 10
     mock_conn.fetchval.assert_awaited_once_with("SELECT COUNT(*) FROM places WHERE list_id = $1", list_id)
     mock_conn.fetch.assert_awaited_once()
-    assert mock_conn.fetch.await_args.args[-3] == list_id # Check list_id in fetch
-    assert mock_conn.fetch.await_args.args[-2] == page_size # Check limit
-    assert mock_conn.fetch.await_args.args[-1] == offset # Check offset
+    assert mock_conn.fetch.await_args.args[1] == list_id # Check list_id in fetch
+    assert mock_conn.fetch.await_args.args[2] == page_size # Check limit
+    assert mock_conn.fetch.await_args.args[3] == offset # Check offset
 
 async def test_get_places_by_list_id_paginated_empty():
     mock_conn = AsyncMock(spec=asyncpg.Connection)
@@ -104,6 +94,17 @@ async def test_add_place_to_list_invalid_data():
     with pytest.raises(InvalidPlaceDataError):
         await crud_place.add_place_to_list(mock_conn, list_id, place_in)
 
+async def test_add_place_to_list_db_error():
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
+    list_id = 1
+    place_in = place_schemas.PlaceCreate(placeId="google123", name="Test Cafe", address="123 Main", latitude=10, longitude=10)
+    # Simulate generic DB error
+    mock_conn.fetchrow.side_effect = asyncpg.PostgresError("Connection timeout")
+
+    with pytest.raises(RuntimeError, match="Database constraint violation adding place"): # Check wrapped error
+        await crud_place.add_place_to_list(mock_conn, list_id, place_in)
+
+
 # --- Tests for update_place_notes ---
 async def test_update_place_notes_success():
     mock_conn = AsyncMock(spec=asyncpg.Connection)
@@ -126,13 +127,24 @@ async def test_update_place_notes_success():
 async def test_update_place_notes_not_found():
     mock_conn = AsyncMock(spec=asyncpg.Connection)
     place_id = 999; list_id = 1; new_notes = "Notes"
-    # Simulate update returns no rows (because place_id/list_id combo doesn't exist)
+    # Simulate update returns no rows
     mock_conn.fetchrow.return_value = None
 
     with pytest.raises(PlaceNotFoundError):
         await crud_place.update_place_notes(mock_conn, place_id, list_id, new_notes)
 
     mock_conn.fetchrow.assert_awaited_once()
+
+async def test_update_place_notes_db_error():
+    mock_conn = AsyncMock(spec=asyncpg.Connection)
+    place_id = 50; list_id = 1; new_notes = "Notes"
+    # Simulate DB error on update
+    mock_conn.fetchrow.side_effect = asyncpg.PostgresError("Update failed")
+
+    # Check if update_place_notes wraps the error (it currently doesn't explicitly)
+    with pytest.raises(asyncpg.PostgresError): # Or DatabaseInteractionError if you wrap it
+        await crud_place.update_place_notes(mock_conn, place_id, list_id, new_notes)
+
 
 # --- Tests for delete_place_from_list ---
 async def test_delete_place_from_list_success():
@@ -151,20 +163,11 @@ async def test_delete_place_from_list_not_found():
     assert deleted is False
     mock_conn.execute.assert_awaited_once()
 
-async def test_add_place_to_list_success():
+async def test_delete_place_from_list_db_error():
     mock_conn = AsyncMock(spec=asyncpg.Connection)
-    list_id = 1
-    place_in = place_schemas.PlaceCreate(
-        placeId="google123", name="Test Cafe", address="123 Main", latitude=10.0, longitude=20.0
-    )
-    expected_db_id = 50
-    mock_conn.fetchrow.return_value = create_mock_record({ # Use helper
-        "id": expected_db_id, "name": place_in.name, "address": place_in.address
-    })
+    # Simulate DB error on delete
+    mock_conn.execute.side_effect = asyncpg.PostgresError("Delete failed")
 
-    result = await crud_place.add_place_to_list(mock_conn, list_id, place_in)
-
-    assert result is not None
-    assert result['id'] == expected_db_id
-    # ... other assertions ...
-    mock_conn.fetchrow.assert_awaited_once()
+    # Check if delete_place_from_list wraps the error (it currently doesn't explicitly)
+    with pytest.raises(asyncpg.PostgresError): # Or DatabaseInteractionError if you wrap it
+        await crud_place.delete_place_from_list(mock_conn, 50, 1)
