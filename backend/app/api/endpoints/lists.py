@@ -14,9 +14,9 @@ from app.api import deps
 # Alias schemas for clarity
 from app.schemas import list as list_schemas
 from app.schemas import place as place_schemas
-from app.schemas import user as user_schemas
+from app.schemas import user as user_schemas # Needed for collaborator response
 # Import specific CRUD functions needed
-from app.crud import crud_list, crud_place, crud_user # Assuming crud_user needed for collab lookup
+from app.crud import crud_list, crud_place, crud_user # crud_user might be needed if collab returns user info
 
 # Import Rate Limiting stuff
 from slowapi import Limiter
@@ -54,7 +54,7 @@ async def create_list(
             isPrivate=created_list_record['is_private'],
             collaborators=[] # New lists have no collaborators initially
         )
-    except crud_list.DatabaseInteractionError as e:
+    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
         logger.error(f"DB interaction error creating list for user {current_user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error creating list")
     except Exception as e:
@@ -95,7 +95,7 @@ async def get_lists(
 @limiter.limit("15/minute")
 async def get_list_detail(
     request: Request, # For limiter state
-    # Use the dependency to check access and potentially get the list record
+    # Use the dependency to check access and get the list record
     list_record: asyncpg.Record = Depends(deps.get_list_and_verify_access), # Extracts list_id from path
     db: asyncpg.Connection = Depends(deps.get_db) # Still need db for collaborator fetch
 ):
@@ -105,7 +105,6 @@ async def get_list_detail(
     """
     try:
         # list_record is already fetched and access verified by the dependency
-        # Now just fetch collaborators
         list_id = list_record['id']
         collaborators = await crud_list._get_collaborator_emails(db, list_id) # Use internal helper or dedicated CRUD func
         # Combine and return
@@ -117,7 +116,7 @@ async def get_list_detail(
              collaborators=collaborators
          )
     except HTTPException as he:
-        raise he # Propagate errors from dependency
+        raise he # Propagate errors from dependency (403, 404)
     except Exception as e:
         # list_id might not be available here if dependency failed early
         logger.error(f"Error fetching detail/collaborators for list after access check: {e}", exc_info=True)
@@ -129,17 +128,14 @@ async def get_list_detail(
 async def update_list(
     request: Request, # For limiter state
     update_data: list_schemas.ListUpdate,
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_ownership), # Custom dependency example
+    # Use the dependency to verify ownership and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_ownership),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Update a list's name or privacy status. Requires ownership (checked by dependency).
     """
-    # Dependency `get_list_id_from_path_and_verify_ownership` should:
-    # 1. Extract list_id from path
-    # 2. Verify ownership using current_user_id and db
-    # 3. Raise 404/403 if check fails
-    # 4. Return list_id if successful
+    list_id = list_record['id'] # Extract ID from record provided by dependency
 
     if not update_data.model_dump(exclude_unset=True):
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No update fields provided")
@@ -153,7 +149,7 @@ async def update_list(
         return list_schemas.ListDetailResponse(**updated_list_dict)
     except HTTPException as he:
         raise he
-    except crud_list.DatabaseInteractionError as e:
+    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error updating list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error updating list")
     except Exception as e:
@@ -165,12 +161,14 @@ async def update_list(
 @limiter.limit("10/minute")
 async def delete_list(
     request: Request, # For limiter state
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_ownership), # Custom dependency example
+    # Use the dependency to verify ownership and get the record (to ensure it exists)
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_ownership),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Delete a list. Requires ownership (checked by dependency).
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
         # Ownership already checked by dependency
         deleted = await crud_list.delete_list(db=db, list_id=list_id)
@@ -181,7 +179,7 @@ async def delete_list(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException as he:
         raise he
-    except crud_list.DatabaseInteractionError as e:
+    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error deleting list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error deleting list")
     except Exception as e:
@@ -194,23 +192,25 @@ async def delete_list(
 async def add_collaborator(
     request: Request, # For limiter state
     collaborator: list_schemas.CollaboratorAdd,
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_ownership), # Check owner
+    # Use the dependency to verify ownership and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_ownership),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Add a collaborator (by email) to a list specified by `list_id`. Requires list ownership.
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
         # Ownership already checked by dependency
         await crud_list.add_collaborator_to_list(db=db, list_id=list_id, collaborator_email=collaborator.email)
-        return user_schemas.UsernameSetResponse(message="Collaborator added")
+        return user_schemas.UsernameSetResponse(message="Collaborator added") # Match original response model
     except HTTPException as he: # Handle errors from dependency
         raise he
     except crud_list.CollaboratorNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except crud_list.CollaboratorAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except crud_list.DatabaseInteractionError as e:
+    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error adding collaborator {collaborator.email} to list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error adding collaborator")
     except Exception as e:
@@ -226,13 +226,15 @@ async def get_places_in_list(
     request: Request, # For limiter state
     page: int = Query(1, ge=1, description="Page number to retrieve"),
     page_size: int = Query(30, ge=1, le=100, description="Number of places per page"),
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_access), # Check access
+    # Use the dependency to verify access and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_access),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Get places within a specific list (paginated).
     Requires ownership or collaboration access (checked by dependency).
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
         # Access already checked by dependency
         place_records, total_items = await crud_place.get_places_by_list_id_paginated(
@@ -258,13 +260,15 @@ async def get_places_in_list(
 async def add_place_to_list(
     request: Request, # For limiter state
     place: place_schemas.PlaceCreate,
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_access), # Check access
+    # Use the dependency to verify access and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_access),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Add a new place to a specific list identified by `list_id`.
     Requires ownership or collaboration access.
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
         # Access checked by dependency
         created_place_record = await crud_place.add_place_to_list(db=db, list_id=list_id, place_in=place)
@@ -275,7 +279,7 @@ async def add_place_to_list(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except crud_place.InvalidPlaceDataError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid data provided for place: {e}")
-    except crud_place.DatabaseInteractionError as e:
+    except crud_place.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error adding place to list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error adding place")
     except Exception as e:
@@ -289,17 +293,20 @@ async def update_place_in_list(
     request: Request, # For limiter state
     place_id: int, # From path
     place_update: place_schemas.PlaceUpdate,
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_access), # Check access
+    # Use the dependency to verify access and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_access),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Update a place's details (currently only 'notes') within a list.
     Requires ownership or collaboration access (checked by dependency).
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
+
     update_fields = place_update.model_dump(exclude_unset=True)
     if not update_fields:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No update fields provided")
-    if "notes" not in update_fields: # Check if only 'notes' is present
+    if "notes" not in update_fields: # Assuming only notes are updatable currently
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only 'notes' field is currently updatable.")
 
     try:
@@ -316,7 +323,7 @@ async def update_place_in_list(
         raise he
     except crud_place.PlaceNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except crud_place.DatabaseInteractionError as e:
+    except crud_place.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error updating place {place_id} in list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error updating place")
     except Exception as e:
@@ -326,16 +333,18 @@ async def update_place_in_list(
 
 @router.delete("/{list_id}/places/{place_id}", status_code=status.HTTP_204_NO_CONTENT, tags=place_tags)
 @limiter.limit("20/minute")
-async def delete_place_from_list_endpoint( # Renamed function to avoid conflict
+async def delete_place_from_list_endpoint( # Renamed function
     request: Request, # For limiter state
     place_id: int, # From path
-    list_id: int = Depends(deps.get_list_id_from_path_and_verify_access), # Check access
+    # Use the dependency to verify access and get the record
+    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_access),
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Delete a place (identified by `place_id`) from a list (identified by `list_id`).
     Requires ownership or collaboration access (checked by dependency).
     """
+    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
         # Access checked by dependency
         deleted = await crud_place.delete_place_from_list(db=db, place_id=place_id, list_id=list_id)
@@ -346,7 +355,7 @@ async def delete_place_from_list_endpoint( # Renamed function to avoid conflict
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException as he:
         raise he
-    except crud_place.DatabaseInteractionError as e:
+    except crud_place.DatabaseInteractionError as e: # Catch specific CRUD errors
          logger.error(f"DB interaction error deleting place {place_id} from list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error deleting place")
     except Exception as e:

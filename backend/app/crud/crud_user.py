@@ -28,7 +28,8 @@ class DatabaseInteractionError(Exception):
 async def get_user_by_id(db: asyncpg.Connection, user_id: int) -> Optional[asyncpg.Record]:
     """Fetches a complete user record by their database ID."""
     logger.debug(f"Fetching user by ID: {user_id}")
-    query = "SELECT id, email, username, display_name, profile_picture FROM users WHERE id = $1"
+    # Fetch all columns needed for UserBase or potentially more if needed elsewhere
+    query = "SELECT id, email, username, display_name, profile_picture, profile_is_public, lists_are_public, allow_analytics FROM users WHERE id = $1"
     user = await db.fetchrow(query, user_id)
     if not user:
         logger.warning(f"User with ID {user_id} not found.")
@@ -56,6 +57,7 @@ async def check_user_exists(db: asyncpg.Connection, user_id: int) -> bool:
 async def create_user(db: asyncpg.Connection, email: str, firebase_uid: str, display_name: Optional[str] = None, profile_picture: Optional[str] = None) -> int:
     """Creates a new user entry and returns the new user ID."""
     logger.info(f"Creating new user entry for email: {email}, firebase_uid: {firebase_uid}")
+    # Assuming default privacy settings are set by the DB schema defaults
     query = """
         INSERT INTO users (email, firebase_uid, display_name, profile_picture, created_at, updated_at)
         VALUES ($1, $2, $3, $4, NOW(), NOW())
@@ -71,7 +73,8 @@ async def create_user(db: asyncpg.Connection, email: str, firebase_uid: str, dis
     except asyncpg.exceptions.UniqueViolationError as e:
         # This might happen in race conditions if email/firebase_uid should be unique
         logger.error(f"Unique constraint violation during user creation for email {email}: {e}")
-        raise DatabaseInteractionError(f"User with email {email} or Firebase UID already exists.") from e
+        # Re-fetch based on constraint might be complex, better to rely on get_or_create logic
+        raise DatabaseInteractionError(f"User with this email or Firebase UID might already exist.") from e
     except Exception as e:
         logger.error(f"Unexpected error creating user {email}: {e}", exc_info=True)
         raise DatabaseInteractionError("Failed to create user record.") from e
@@ -106,7 +109,9 @@ async def get_or_create_user_by_firebase(db: asyncpg.Connection, token_data: tok
         user_record_by_uid = await get_user_by_firebase_uid(db, firebase_uid)
         if user_record_by_uid:
             user_id = user_record_by_uid['id']
-            needs_username = user_record_by_uid['username'] is None
+            # Check username status from the full record for consistency
+            full_record = await get_user_by_id(db, user_id)
+            needs_username = full_record['username'] is None if full_record else True
             logger.debug(f"User found by firebase_uid: {user_id}, NeedsUsername: {needs_username}")
             return user_id, needs_username
 
@@ -115,7 +120,9 @@ async def get_or_create_user_by_firebase(db: asyncpg.Connection, token_data: tok
         if user_record_by_email:
             user_id = user_record_by_email['id']
             existing_firebase_uid = user_record_by_email['firebase_uid']
-            needs_username = user_record_by_email['username'] is None
+            # Check username status from the full record for consistency
+            full_record = await get_user_by_id(db, user_id)
+            needs_username = full_record['username'] is None if full_record else True
             logger.debug(f"User found by email: {user_id}. Existing UID: {existing_firebase_uid}, Token UID: {firebase_uid}")
 
             # Update Firebase UID if it's different or null
@@ -174,7 +181,7 @@ async def get_following(db: asyncpg.Connection, user_id: int, page: int, page_si
     count_query = "SELECT COUNT(*) FROM user_follows WHERE follower_id = $1"
     total_items = await db.fetchval(count_query, user_id) or 0
 
-    # Get paginated items
+    # Get paginated items - Select all fields needed for UserFollowInfo schema
     fetch_query = """
         SELECT u.id, u.email, u.username, u.display_name, u.profile_picture
         FROM user_follows uf
@@ -325,8 +332,156 @@ async def get_user_notifications(db: asyncpg.Connection, user_id: int, page: int
      logger.debug(f"Found {len(notifications)} notifications (total: {total_items})")
      return notifications, total_items
 
-# TODO: Add CRUD functions for:
-# - Updating user profile (display name, picture URL) -> update_user_profile
-# - Fetching privacy settings -> get_privacy_settings
-# - Updating privacy settings -> update_privacy_settings
-# - Deleting user account -> delete_user_account
+
+# --- User Profile and Settings CRUD (Implementations added) ---
+
+async def get_current_user_profile(db: asyncpg.Connection, user_id: int) -> Optional[asyncpg.Record]:
+    """Fetches the user profile data needed for GET /users/me."""
+    logger.debug(f"Fetching profile for user_id: {user_id}")
+    # Assuming UserBase schema needs these fields
+    query = "SELECT id, email, username, display_name, profile_picture FROM users WHERE id = $1"
+    user = await db.fetchrow(query, user_id)
+    if not user:
+         logger.warning(f"Profile not found for user_id {user_id}")
+         raise UserNotFoundError(f"User with ID {user_id} not found.")
+    return user
+
+async def update_user_profile(db: asyncpg.Connection, user_id: int, profile_in: user_schemas.UserProfileUpdate) -> asyncpg.Record:
+    """Updates the user's display name and/or profile picture."""
+    logger.info(f"Updating profile for user_id: {user_id}")
+    update_fields = profile_in.model_dump(exclude_unset=True, by_alias=False) # Use model_dump in Pydantic v2
+    if not update_fields:
+        logger.warning(f"Update profile called for user {user_id} with no fields to update.")
+        current_profile = await get_current_user_profile(db, user_id)
+        if not current_profile:
+             raise UserNotFoundError(f"User {user_id} not found.")
+        return current_profile # Return current profile if no update
+
+    set_clauses = []
+    params = []
+    param_index = 1
+
+    # Map Pydantic field names to DB column names
+    # Use profile_in attributes directly after exclude_unset=True check
+    if profile_in.display_name is not None:
+        set_clauses.append(f"display_name = ${param_index}")
+        params.append(profile_in.display_name)
+        param_index += 1
+    if profile_in.profile_picture is not None:
+        set_clauses.append(f"profile_picture = ${param_index}")
+        params.append(profile_in.profile_picture)
+        param_index += 1
+
+    if not set_clauses: # Should not happen if update_fields was checked
+        current_profile = await get_current_user_profile(db, user_id)
+        if not current_profile:
+            raise UserNotFoundError(f"User {user_id} not found.")
+        return current_profile
+
+    params.append(user_id) # For WHERE clause
+    sql = f"""
+        UPDATE users
+        SET {', '.join(set_clauses)}, updated_at = NOW()
+        WHERE id = ${param_index}
+        RETURNING id, email, username, display_name, profile_picture
+    """
+
+    try:
+        updated_record = await db.fetchrow(sql, *params)
+        if not updated_record:
+            # Check if user exists to be sure
+            if not await check_user_exists(db, user_id):
+                 raise UserNotFoundError(f"User {user_id} not found for profile update.")
+            else:
+                 logger.error(f"Profile update for user {user_id} returned no record despite user existing.")
+                 raise DatabaseInteractionError("Failed to update profile.")
+        logger.info(f"Profile updated successfully for user {user_id}")
+        return updated_record
+    except Exception as e:
+        logger.error(f"Error updating profile for user {user_id}: {e}", exc_info=True)
+        raise DatabaseInteractionError("Database error updating profile.") from e
+
+
+async def get_privacy_settings(db: asyncpg.Connection, user_id: int) -> asyncpg.Record:
+    """Fetches privacy settings for a user."""
+    logger.debug(f"Fetching privacy settings for user_id: {user_id}")
+    # Assuming privacy settings are columns in the 'users' table
+    query = "SELECT profile_is_public, lists_are_public, allow_analytics FROM users WHERE id = $1"
+    settings_record = await db.fetchrow(query, user_id)
+    if not settings_record:
+        raise UserNotFoundError(f"User {user_id} not found when fetching privacy settings.")
+    return settings_record
+
+async def update_privacy_settings(db: asyncpg.Connection, user_id: int, settings_in: user_schemas.PrivacySettingsUpdate) -> asyncpg.Record:
+    """Updates privacy settings for a user."""
+    logger.info(f"Updating privacy settings for user_id: {user_id}")
+    update_fields = settings_in.model_dump(exclude_unset=True)
+    if not update_fields:
+        logger.warning(f"Update privacy settings called for user {user_id} with no fields.")
+        return await get_privacy_settings(db, user_id) # Return current settings
+
+    set_clauses = []
+    params = []
+    param_index = 1
+
+    # Map Pydantic fields to DB column names
+    if "profile_is_public" in update_fields:
+        set_clauses.append(f"profile_is_public = ${param_index}")
+        params.append(update_fields["profile_is_public"])
+        param_index += 1
+    if "lists_are_public" in update_fields:
+        set_clauses.append(f"lists_are_public = ${param_index}")
+        params.append(update_fields["lists_are_public"])
+        param_index += 1
+    if "allow_analytics" in update_fields:
+        set_clauses.append(f"allow_analytics = ${param_index}")
+        params.append(update_fields["allow_analytics"])
+        param_index += 1
+
+    if not set_clauses:
+        return await get_privacy_settings(db, user_id)
+
+    params.append(user_id) # For WHERE clause
+    sql = f"""
+        UPDATE users
+        SET {', '.join(set_clauses)}, updated_at = NOW()
+        WHERE id = ${param_index}
+        RETURNING profile_is_public, lists_are_public, allow_analytics
+    """
+    try:
+        updated_settings = await db.fetchrow(sql, *params)
+        if not updated_settings:
+             if not await check_user_exists(db, user_id):
+                  raise UserNotFoundError(f"User {user_id} not found for privacy settings update.")
+             else:
+                  logger.error(f"Privacy settings update for user {user_id} returned no record.")
+                  raise DatabaseInteractionError("Failed to update privacy settings.")
+        logger.info(f"Privacy settings updated for user {user_id}")
+        return updated_settings
+    except Exception as e:
+        logger.error(f"Error updating privacy settings for user {user_id}: {e}", exc_info=True)
+        raise DatabaseInteractionError("Database error updating privacy settings.") from e
+
+
+async def delete_user_account(db: asyncpg.Connection, user_id: int) -> bool:
+    """
+    Deletes a user account and potentially related data (depending on DB constraints).
+    Returns True if deleted, False if user not found.
+    """
+    logger.warning(f"Attempting to delete account for user ID: {user_id}")
+    # Ensure foreign key constraints (ON DELETE CASCADE or SET NULL) are set up
+    # correctly in your database schema to handle related data (lists, follows, etc.)
+    query = "DELETE FROM users WHERE id = $1"
+    try:
+        status = await db.execute(query, user_id)
+        # Check the command tag string 'DELETE <count>'
+        deleted_count = int(status.split(" ")[1])
+        if deleted_count > 0:
+            logger.info(f"Successfully deleted account for user ID: {user_id}")
+            return True
+        else:
+            logger.warning(f"Attempted to delete user {user_id}, but user was not found.")
+            return False # User didn't exist
+    except Exception as e:
+        logger.error(f"Error deleting account for user {user_id}: {e}", exc_info=True)
+        raise DatabaseInteractionError("Database error deleting account.") from e

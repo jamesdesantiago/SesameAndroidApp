@@ -199,3 +199,31 @@ async def get_list_and_verify_access(
     except Exception as e:
          logger.error(f"Error verifying access for list {list_id} user {current_user_id}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error checking list access")
+
+async def get_optional_verified_token_data(
+    authorization: Optional[str] = Header(None, alias="Authorization")
+) -> Optional[token_schemas.FirebaseTokenData]:
+    """
+    Dependency that attempts to verify the Firebase token if provided,
+    but returns None if the header is missing or verification fails.
+    Does NOT raise HTTPExceptions for auth errors.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None # No valid header provided
+
+    token = authorization.split("Bearer ")[1]
+    try:
+        # Verify the token
+        decoded_token = firebase_auth.verify_id_token(token)
+        # Validate and map to Pydantic model
+        token_data = token_schemas.FirebaseTokenData(**decoded_token)
+        if not token_data.uid:
+            raise ValueError("Token 'uid' missing after validation")
+        # Optional: check for email if needed
+        # if not token_data.email:
+        #     raise ValueError("Token 'email' missing after validation")
+        return token_data
+    except Exception as e:
+        # Log the error but return None instead of raising HTTPException
+        logger.warning(f"Optional token verification failed: {e}", exc_info=False)
+        return None
