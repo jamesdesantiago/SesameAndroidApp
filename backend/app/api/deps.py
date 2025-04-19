@@ -227,3 +227,62 @@ async def get_optional_verified_token_data(
         # Log the error but return None instead of raising HTTPException
         logger.warning(f"Optional token verification failed: {e}", exc_info=False)
         return None
+
+# --- NEW List Permission Dependency ---
+async def verify_list_ownership(
+    list_id: int = Path(..., description="The ID of the list to verify ownership for"),
+    db: asyncpg.Connection = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+):
+    """
+    Dependency that verifies the current user owns the list specified by list_id path parameter.
+    Raises HTTPException 404 if list not found, 403 if not owner.
+    Does *not* return the list object, only performs the check.
+    Use this for endpoints like PATCH/DELETE where you only need to confirm ownership
+    before performing the action.
+    """
+    try:
+        await crud_list.check_list_ownership(db=db, list_id=list_id, user_id=current_user_id)
+        # If no exception is raised, ownership is verified.
+        # We don't need to return anything from this dependency.
+    except crud_list.ListNotFoundError:
+        # Convert CRUD exception to HTTPException
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+    except crud_list.ListAccessDeniedError:
+        # Convert CRUD exception to HTTPException
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this list")
+    except HTTPException as he:
+        # Re-raise HTTPExceptions from nested dependencies
+        raise he
+    except Exception as e:
+         # Catch any other unexpected errors during the check
+         logger.error(f"Error during ownership verification for list {list_id} by user {current_user_id}", exc_info=True)
+         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error checking list ownership")
+
+# You still need get_list_and_verify_access for GET requests that need the list data *after* the check
+async def get_list_and_verify_access(
+    list_id: int = Path(..., description="The ID of the list to access"),
+    db: asyncpg.Connection = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id)
+) -> asyncpg.Record: # Returns the list record
+    # ... (Implementation remains the same as before) ...
+    try:
+        await crud_list.check_list_access(db=db, list_id=list_id, user_id=current_user_id)
+        # Fetch the list record AFTER access check passes
+        list_record = await crud_list.get_list_by_id(db=db, list_id=list_id) # Assumes get_list_by_id exists
+        if not list_record:
+             # This case indicates an inconsistency if check_list_access passed but list disappeared
+             logger.error(f"List {list_id} not found after access check passed for user {current_user_id}.")
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found (inconsistent state)")
+        return list_record
+    except crud_list.ListNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+    except crud_list.ListAccessDeniedError:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this list")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+         logger.error(f"Error verifying access for list {list_id} user {current_user_id}", exc_info=True)
+         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error checking list access")
+
+# --- End List Permission Dependencies ---

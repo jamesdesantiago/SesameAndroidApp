@@ -128,58 +128,56 @@ async def get_list_detail(
 async def update_list(
     request: Request, # For limiter state
     update_data: list_schemas.ListUpdate,
-    # Use the dependency to verify ownership and get the record
-    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_ownership),
+    list_id: int = Path(..., description="The ID of the list to update"), # Get list_id from path
+    # Use the new dependency that *only* verifies ownership
+    _=Depends(deps.verify_list_ownership), # Assign to _ as we don't need a return value
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Update a list's name or privacy status. Requires ownership (checked by dependency).
     """
-    list_id = list_record['id'] # Extract ID from record provided by dependency
-
     if not update_data.model_dump(exclude_unset=True):
          raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No update fields provided")
     try:
-        # Ownership already checked by dependency
+        # Ownership already checked by dependency 'verify_list_ownership'
         updated_list_dict = await crud_list.update_list(db=db, list_id=list_id, list_in=update_data)
         if not updated_list_dict:
-            # Should not happen if ownership dependency worked, but handle defensively
-            logger.error(f"List {list_id} not found for update after ownership check.")
+            # CRUD returns None if the list wasn't found for update (e.g., deleted concurrently)
+            logger.error(f"List {list_id} not found for update after ownership check passed.")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found for update")
         return list_schemas.ListDetailResponse(**updated_list_dict)
-    except HTTPException as he:
+    except HTTPException as he: # Catch 403/404 from dependency
         raise he
-    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
+    except crud_list.DatabaseInteractionError as e:
          logger.error(f"DB interaction error updating list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error updating list")
     except Exception as e:
         logger.error(f"Unexpected error updating list {list_id}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error updating list")
 
-
 @router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT, tags=list_tags)
 @limiter.limit("10/minute")
 async def delete_list(
     request: Request, # For limiter state
-    # Use the dependency to verify ownership and get the record (to ensure it exists)
-    list_record: asyncpg.Record = Depends(deps.get_list_and_verify_ownership),
+    list_id: int = Path(..., description="The ID of the list to delete"), # Get list_id from path
+    # Use the new dependency that *only* verifies ownership
+    _=Depends(deps.verify_list_ownership), # Assign to _
     db: asyncpg.Connection = Depends(deps.get_db)
 ):
     """
     Delete a list. Requires ownership (checked by dependency).
     """
-    list_id = list_record['id'] # Extract ID from record provided by dependency
     try:
-        # Ownership already checked by dependency
+        # Ownership already checked by dependency 'verify_list_ownership'
         deleted = await crud_list.delete_list(db=db, list_id=list_id)
         if not deleted:
-             # Should not happen if ownership dependency worked
-             logger.error(f"List {list_id} not found for delete after ownership check.")
+             # CRUD returns False if delete affected 0 rows
+             logger.error(f"List {list_id} not found for delete after ownership check passed.")
              raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found for deletion")
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except HTTPException as he:
+    except HTTPException as he: # Catch 403/404 from dependency
         raise he
-    except crud_list.DatabaseInteractionError as e: # Catch specific CRUD errors
+    except crud_list.DatabaseInteractionError as e:
          logger.error(f"DB interaction error deleting list {list_id}: {e}", exc_info=True)
          raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error deleting list")
     except Exception as e:

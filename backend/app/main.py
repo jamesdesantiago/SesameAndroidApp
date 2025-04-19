@@ -205,7 +205,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Add the main API routers with a prefix (e.g., /api/v1)
 app.include_router(users_router.router, prefix=settings.API_V1_STR)
 app.include_router(lists_router.router, prefix=f"{settings.API_V1_STR}/lists")
-app.include_router(users_router.router, prefix=settings.API_V1_STR)
 app.include_router(discovery_router.router, prefix=settings.API_V1_STR, tags=["Discovery"])
 # Include discovery router if created for top-level /public, /search, /recent
 # app.include_router(discovery_router.router, prefix=settings.API_V1_STR, tags=["Discovery"])

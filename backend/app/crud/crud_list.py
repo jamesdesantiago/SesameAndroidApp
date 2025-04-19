@@ -56,16 +56,35 @@ async def get_user_lists_paginated(db: asyncpg.Connection, owner_id: int, page: 
 
     # Fetch query
     fetch_query = """
-        SELECT
-            l.id, l.name, l.description, l.is_private,
-            (SELECT COUNT(*) FROM places p WHERE p.list_id = l.id) as place_count
-        FROM lists l
-        WHERE l.owner_id = $1
-        ORDER BY l.created_at DESC
-        LIMIT $2 OFFSET $3
-    """
-    lists = await db.fetch(fetch_query, owner_id, page_size, offset)
-    return lists, total_items
+            SELECT l.id, l.name, l.description, l.is_private -- No subquery here
+            FROM lists l
+            WHERE l.owner_id = $1
+            ORDER BY l.created_at DESC LIMIT $2 OFFSET $3
+        """
+        list_records = await db.fetch(fetch_query, owner_id, page_size, offset)
+
+        # Fetch counts separately for the retrieved list IDs
+        list_ids = [r['id'] for r in list_records]
+        place_counts = {}
+        if list_ids:
+            count_query = """
+                SELECT list_id, COUNT(*) as count
+                FROM places
+                WHERE list_id = ANY($1::int[])
+                GROUP BY list_id
+            """
+            count_records = await db.fetch(count_query, list_ids)
+            place_counts = {r['list_id']: r['count'] for r in count_records}
+
+        # Add counts to the records (or handle in endpoint mapping)
+        lists_with_counts = []
+        for record in list_records:
+            record_dict = dict(record) # Convert to mutable dict
+            record_dict['place_count'] = place_counts.get(record['id'], 0)
+            # Optionally convert back to a Record-like object or just return dicts
+            lists_with_counts.append(asyncpg.Record(record_dict)) # Example, might need adjustment
+
+        return lists_with_counts, total_items
 
 async def get_list_details(db: asyncpg.Connection, list_id: int) -> Optional[dict]:
     """Fetches list metadata and collaborator emails."""
@@ -195,5 +214,129 @@ async def check_list_access(db: asyncpg.Connection, list_id: int, user_id: int):
             raise ListNotFoundError("List not found")
     logger.debug(f"List access check passed for user {user_id} on list {list_id}")
 
+async def delete_collaborator_from_list(db: asyncpg.Connection, list_id: int, collaborator_user_id: int) -> bool:
+    """Removes a collaborator from a list. Returns True if removed, False if not found."""
+    logger.info(f"Attempting to remove collaborator {collaborator_user_id} from list {list_id}")
+    # Need to ensure owner cannot be removed? Depends on business logic.
+    # owner_id = await db.fetchval("SELECT owner_id FROM lists WHERE id = $1", list_id)
+    # if owner_id == collaborator_user_id:
+    #    logger.warning(f"Attempted to remove owner {collaborator_user_id} as collaborator from list {list_id}")
+    #    return False # Or raise specific error
 
-# Add functions for get_public_lists, search_lists, get_recent_lists if needed
+    query = "DELETE FROM list_collaborators WHERE list_id = $1 AND user_id = $2"
+    try:
+        status = await db.execute(query, list_id, collaborator_user_id)
+        deleted_count = int(status.split(" ")[1])
+        if deleted_count > 0:
+            logger.info(f"Collaborator {collaborator_user_id} removed from list {list_id}")
+            return True
+        else:
+            logger.warning(f"Collaborator {collaborator_user_id} not found on list {list_id} for deletion.")
+            return False # Collaborator was not on the list
+    except Exception as e:
+        logger.error(f"Error removing collaborator {collaborator_user_id} from list {list_id}: {e}", exc_info=True)
+        raise DatabaseInteractionError("Database error removing collaborator.") from e # Use custom generic DB error
+
+
+# --- List Discovery CRUD Functions ---
+
+async def get_public_lists_paginated(db: asyncpg.Connection, page: int, page_size: int) -> Tuple[List[asyncpg.Record], int]:
+    """Fetches paginated public lists."""
+    offset = (page - 1) * page_size
+    logger.debug(f"Fetching public lists, page {page}, size {page_size}")
+
+    count_query = "SELECT COUNT(*) FROM lists WHERE is_private = FALSE"
+    total_items = await db.fetchval(count_query) or 0
+
+    # Select fields needed by ListViewResponse schema
+    fetch_query = """
+        SELECT
+            l.id, l.name, l.description, l.is_private,
+            (SELECT COUNT(*) FROM places p WHERE p.list_id = l.id) as place_count
+        FROM lists l
+        WHERE l.is_private = FALSE
+        ORDER BY l.created_at DESC -- Or popularity, name, etc.
+        LIMIT $1 OFFSET $2
+    """
+    lists = await db.fetch(fetch_query, page_size, offset)
+    logger.debug(f"Found {len(lists)} public lists (total: {total_items})")
+    return lists, total_items
+
+async def search_lists_paginated(db: asyncpg.Connection, query: str, user_id: Optional[int], page: int, page_size: int) -> Tuple[List[asyncpg.Record], int]:
+    """Searches lists by name/description. Includes user's private lists if authenticated."""
+    offset = (page - 1) * page_size
+    search_term = f"%{query}%"
+    logger.debug(f"Searching lists for '{query}', user_id {user_id}, page {page}, size {page_size}")
+
+    params = [search_term]
+    # Use LOWER() for case-insensitive search on indexed columns if possible
+    # Ensure you have trigram indexes (pg_trgm extension) or full-text search for better performance
+    where_clauses = ["(LOWER(l.name) LIKE LOWER($1) OR LOWER(l.description) LIKE LOWER($1))"]
+    param_idx = 2 # Next param is $2
+
+    if user_id:
+        # If user is authenticated, include their private lists
+        where_clauses.append(f"(l.is_private = FALSE OR l.owner_id = ${param_idx})")
+        params.append(user_id)
+        param_idx += 1
+    else:
+        # If not authenticated, only search public lists
+        where_clauses.append("l.is_private = FALSE")
+
+    where_sql = " AND ".join(where_clauses)
+    base_query = f"FROM lists l WHERE {where_sql}"
+
+    # Count query
+    count_sql = f"SELECT COUNT(*) {base_query}"
+    total_items = await db.fetchval(count_sql, *params) or 0
+
+    # Fetch query - select fields needed by ListViewResponse schema
+    fetch_sql = f"""
+        SELECT
+            l.id, l.name, l.description, l.is_private,
+            (SELECT COUNT(*) FROM places p WHERE p.list_id = l.id) as place_count
+        {base_query}
+        ORDER BY l.created_at DESC -- Or relevance score? Or name?
+        LIMIT ${param_idx} OFFSET ${param_idx + 1}
+    """
+    params.extend([page_size, offset])
+    lists = await db.fetch(fetch_sql, *params)
+    logger.debug(f"Found {len(lists)} lists matching search (total: {total_items})")
+    return lists, total_items
+
+
+async def get_recent_lists_paginated(db: asyncpg.Connection, user_id: int, page: int, page_size: int) -> Tuple[List[asyncpg.Record], int]:
+    """Fetches recently created lists (public or owned by the user), paginated."""
+    # Note: This fetches lists created recently overall, filtered by user access.
+    # If "recent" means recently *interacted with* by the user, the logic is more complex.
+    offset = (page - 1) * page_size
+    logger.debug(f"Fetching recent lists for user {user_id}, page {page}, size {page_size}")
+
+    # Base query for filtering
+    where_clause = "WHERE l.is_private = FALSE OR l.owner_id = $1"
+
+    # Count query (Public or owned by user)
+    count_query = f"SELECT COUNT(*) FROM lists l {where_clause}"
+    total_items = await db.fetchval(count_query, user_id) or 0
+
+    # Fetch query - select fields needed by ListViewResponse schema
+    fetch_query = f"""
+        SELECT
+            l.id, l.name, l.description, l.is_private,
+            (SELECT COUNT(*) FROM places p WHERE p.list_id = l.id) as place_count
+        FROM lists l
+        {where_clause}
+        ORDER BY l.created_at DESC
+        LIMIT $2 OFFSET $3
+    """
+    lists = await db.fetch(fetch_query, user_id, page_size, offset)
+    logger.debug(f"Found {len(lists)} recent lists (total: {total_items})")
+    return lists, total_items
+
+# Add get_list_by_id function if it doesn't exist (needed by permission checks)
+async def get_list_by_id(db: asyncpg.Connection, list_id: int) -> Optional[asyncpg.Record]:
+    """Fetches a single list by its ID."""
+    # Fetches columns needed by permission checks and potentially by endpoints using it
+    query = "SELECT id, owner_id, name, description, is_private FROM lists WHERE id = $1"
+    list_record = await db.fetchrow(query, list_id)
+    return list_record
