@@ -4,7 +4,7 @@ from typing import Optional, List
 from datetime import datetime # Keep if needed for timestamps in detailed models
 
 # Import PlaceItem if needed within list responses (currently avoided in detail responses)
-# from .place import PlaceItem # Not currently needed based on API design
+# from .place import PlaceItem #ListCreate Not currently needed based on API design
 
 # --- List Schemas ---
 
@@ -32,9 +32,9 @@ class ListViewResponse(BaseModel):
     class Config:
         # Allows mapping directly from db records if field names match or using aliases
         # Pydantic V1:
-        orm_mode = True
+        # orm_mode = True
         # Pydantic V2:
-        # model_config = {"from_attributes": True}
+        model_config = {"from_attributes": True}
 
 # Schema for the response when getting detailed metadata for ONE list (e.g., GET /lists/{id})
 class ListDetailResponse(BaseModel):
@@ -42,13 +42,13 @@ class ListDetailResponse(BaseModel):
     name: str = Field(..., description="The name of the list")
     description: Optional[str] = Field(None, description="The list description")
     isPrivate: bool = Field(..., description="List privacy status")
-    collaborators: List[EmailStr] = Field([], description="List of collaborator email addresses") # Assuming emails
+    collaborators: List[EmailStr] = Field([], description="List of collaborator email addresses")
 
     class Config:
         # Pydantic V1:
-        orm_mode = True
+        # orm_mode = True
         # Pydantic V2:
-        # model_config = {"from_attributes": True}
+        model_config = {"from_attributes": True}
 
 # Schema for updating an existing list (request body for PATCH /lists/{id})
 class ListUpdate(BaseModel):

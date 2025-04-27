@@ -23,6 +23,6 @@ class FirebaseTokenData(BaseModel):
     class Config:
         # Allow extra fields from the decoded token dict without causing validation errors
         # Pydantic V1:
-        extra = "ignore"
+        # extra = "ignore"
         # Pydantic V2:
-        # model_config = {"extra": "ignore"}
+        model_config = {"extra": "ignore"}

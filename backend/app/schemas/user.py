@@ -15,8 +15,8 @@ class UserBase(BaseModel):
     profile_picture: Optional[str] = Field(None, alias="profilePicture", description="URL of the user's profile picture") # Alias example
 
     class Config:
-        orm_mode = True
-        # model_config = {"from_attributes": True} # For Pydantic V2+
+        #orm_mode = True
+        model_config = {"from_attributes": True} # For Pydantic V2+
         # If using aliases for db fields -> Pydantic model fields:
         allow_population_by_field_name = True # Use alias="db_field_name" in Field
 
@@ -46,6 +46,7 @@ class UsernameSetResponse(BaseModel):
 class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = Field(None, alias="displayName", min_length=1, max_length=50, description="New display name")
     profile_picture: Optional[str] = Field(None, alias="profilePicture", description="New profile picture URL") # Add validation if it should be a URL
+    model_config = {"populate_by_name": True}
 
 # --- Notification Schemas ---
 class NotificationItem(BaseModel):
@@ -56,9 +57,9 @@ class NotificationItem(BaseModel):
     timestamp: datetime = Field(..., description="Timestamp when the notification was created")
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
-        # model_config = {"from_attributes": True, "populate_by_name": True} # For Pydantic V2+
+        #orm_mode = True
+        #allow_population_by_field_name = True
+        model_config = {"from_attributes": True, "populate_by_name": True} # For Pydantic V2+
 
 # Schema for paginated notification response (response for GET /notifications)
 class PaginatedNotificationResponse(BaseModel):
@@ -85,8 +86,8 @@ class PrivacySettingsBase(BaseModel):
 # Response for GET /users/me/settings
 class PrivacySettingsResponse(PrivacySettingsBase):
      class Config:
-        orm_mode = True
-        # model_config = {"from_attributes": True} # For Pydantic V2+
+        #orm_mode = True
+        model_config = {"from_attributes": True} # For Pydantic V2+
 
 # Request body for PATCH /users/me/settings
 class PrivacySettingsUpdate(BaseModel):

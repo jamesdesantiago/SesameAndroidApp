@@ -12,7 +12,8 @@ class PlaceBase(BaseModel):
     longitude: float = Field(..., ge=-180, le=180, description="Longitude coordinate")
     rating: Optional[str] = Field(None, description="User-defined rating (e.g., MUST_VISIT, WORTH_VISITING)") # Or use Literal/Enum
     notes: Optional[str] = Field(None, max_length=1000, description="User's notes about the place")
-    visitStatus: Optional[str] = Field(None, description="User's visit status (e.g., VISITED, WANT_TO_VISIT)") # Or use Literal/Enum
+    visitStatus: Optional[str] = Field(None, alias="visit_status", description="User's visit status (e.g., VISITED, WANT_TO_VISIT)")
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
     # Example validator if needed for visitStatus/rating
     # @validator('visitStatus')
@@ -27,16 +28,18 @@ class PlaceItem(PlaceBase):
     id: int = Field(..., description="Unique database identifier for the place item in the list")
 
     class Config:
-        orm_mode = True
-        # model_config = {"from_attributes": True} # For Pydantic V2+
+        #orm_mode = True
+        model_config = {"from_attributes": True} # For Pydantic V2+
 
 # Schema for creating a new place within a list (request body for POST /lists/{id}/places)
 class PlaceCreate(PlaceBase):
     placeId: str = Field(..., description="External identifier for the place (e.g., Google Place ID)")
+    model_config = {"populate_by_name": True}
 
 # Schema for updating an existing place within a list (request body for PATCH /lists/{id}/places/{place_id})
 class PlaceUpdate(BaseModel):
     notes: Optional[str] = Field(None, max_length=1000, description="Updated notes for the place")
+    model_config = {"populate_by_name": True}
     # Add other potentially updatable fields here if the API supports them
     # visitStatus: Optional[str] = None
     # rating: Optional[str] = None
