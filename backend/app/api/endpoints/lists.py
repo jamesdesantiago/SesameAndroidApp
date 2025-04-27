@@ -5,7 +5,7 @@ from typing import List # Import List
 
 import asyncpg
 from fastapi import (APIRouter, Depends, HTTPException, Header, Query, Request,
-                     Response, status)
+                     Response, status, Path)
 # Using fastapi.Response and status directly
 from fastapi.responses import JSONResponse
 

@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from firebase_admin import credentials
-from sentry_sdk.integrations.asyncpg import AsyncpgIntegration
+from sentry_sdk.integrations.asyncpg import AsyncPGIntegration
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -46,7 +46,7 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "development": # Often disabl
             integrations=[
                 StarletteIntegration(),
                 FastApiIntegration(),
-                AsyncpgIntegration(),
+                AsyncPGIntegration(),
             ],
             send_default_pii=False
         )

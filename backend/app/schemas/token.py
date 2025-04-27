@@ -1,5 +1,5 @@
 # backend/app/schemas/token.py
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 # Schema representing the relevant data extracted from a verified Firebase ID token

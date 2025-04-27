@@ -61,30 +61,30 @@ async def get_user_lists_paginated(db: asyncpg.Connection, owner_id: int, page: 
             WHERE l.owner_id = $1
             ORDER BY l.created_at DESC LIMIT $2 OFFSET $3
         """
-        list_records = await db.fetch(fetch_query, owner_id, page_size, offset)
+    list_records = await db.fetch(fetch_query, owner_id, page_size, offset)
 
-        # Fetch counts separately for the retrieved list IDs
-        list_ids = [r['id'] for r in list_records]
-        place_counts = {}
-        if list_ids:
-            count_query = """
-                SELECT list_id, COUNT(*) as count
-                FROM places
-                WHERE list_id = ANY($1::int[])
-                GROUP BY list_id
-            """
-            count_records = await db.fetch(count_query, list_ids)
-            place_counts = {r['list_id']: r['count'] for r in count_records}
+    # Fetch counts separately for the retrieved list IDs
+    list_ids = [r['id'] for r in list_records]
+    place_counts = {}
+    if list_ids:
+        count_query = """
+            SELECT list_id, COUNT(*) as count
+            FROM places
+            WHERE list_id = ANY($1::int[])
+            GROUP BY list_id
+        """
+        count_records = await db.fetch(count_query, list_ids)
+        place_counts = {r['list_id']: r['count'] for r in count_records}
 
-        # Add counts to the records (or handle in endpoint mapping)
-        lists_with_counts = []
-        for record in list_records:
-            record_dict = dict(record) # Convert to mutable dict
-            record_dict['place_count'] = place_counts.get(record['id'], 0)
-            # Optionally convert back to a Record-like object or just return dicts
-            lists_with_counts.append(asyncpg.Record(record_dict)) # Example, might need adjustment
+    # Add counts to the records (or handle in endpoint mapping)
+    lists_with_counts = []
+    for record in list_records:
+        record_dict = dict(record) # Convert to mutable dict
+        record_dict['place_count'] = place_counts.get(record['id'], 0)
+        # Optionally convert back to a Record-like object or just return dicts
+        lists_with_counts.append(asyncpg.Record(record_dict)) # Example, might need adjustment
 
-        return lists_with_counts, total_items
+    return lists_with_counts, total_items
 
 async def get_list_details(db: asyncpg.Connection, list_id: int) -> Optional[dict]:
     """Fetches list metadata and collaborator emails."""

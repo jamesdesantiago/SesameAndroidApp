@@ -6,7 +6,7 @@ import pytest_asyncio
 import asyncio
 import asyncpg
 from httpx import AsyncClient
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict, Any, Optional
 from dotenv import load_dotenv
 from unittest.mock import patch, AsyncMock # For mocking auth later
 
